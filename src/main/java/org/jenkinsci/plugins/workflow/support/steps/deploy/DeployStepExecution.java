@@ -51,7 +51,7 @@ import java.util.logging.Logger;
 /**
  * @author Kohsuke Kawaguchi
  */
-public class DeployStepExecution extends InputStepExecution implements ModelObject {
+public class DeployStepExecution extends AbstractStepExecutionImpl implements ModelObject {
 
     private static final Logger LOGGER = Logger.getLogger(DeployStepExecution.class.getName());
 
@@ -117,7 +117,6 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
         });
     }
 
-    @Override
     public String getId() {
         return deploy.getId();
     }
@@ -126,7 +125,6 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
         return deploy;
     }
 
-    @Override
     public Run getRun() {
         return run;
     }
@@ -134,7 +132,6 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
     /**
      * If this deploy step has been decided one way or the other.
      */
-    @Override
     public boolean isSettled() {
         return outcome!=null && !outcome.isDeployed();
     }
@@ -146,6 +143,9 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
         DeployAction a = run.getAction(DeployAction.class);
         if (a==null)
             run.addAction(a=new DeployAction());
+//        InputAction a = run.getAction(InputAction.class);
+//        if (a==null)
+//            run.addAction(a=new InputAction());
         return a;
     }
 
@@ -168,7 +168,6 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
      * Called from the form via browser to submit/abort this deploy step.
      */
     @RequirePOST
-    @Override
     public HttpResponse doSubmit(StaplerRequest request) throws IOException, ServletException, InterruptedException {
         if (request.getParameter("proceed")!=null) {
             doProceed(request);
@@ -184,7 +183,6 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
      * REST endpoint to submit the deploy.
      */
     @RequirePOST
-    @Override
     public HttpResponse doProceed(StaplerRequest request) throws IOException, ServletException, InterruptedException {
         preSubmissionCheck();
         Map<String,Object> v = parseValue(request);
@@ -198,7 +196,6 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
      * @param params A map that represents the parameters sent in the request
      * @return A HttpResponse object that represents Status code (200) indicating the request succeeded normally.
      */
-    @Override
     public HttpResponse proceed(@CheckForNull Map<String,Object> params) {
         User user = User.current();
         if (params != null && params.get("deploy") != null && StringUtils.isNotEmpty(params.get("deploy").toString())) {
@@ -282,7 +279,6 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
 
     @Deprecated
     @SuppressWarnings("unchecked")
-    @Override
     public HttpResponse proceed(Object v) {
         if (v instanceof Map) {
             return proceed(new HashMap<String,Object>((Map) v));
@@ -297,7 +293,6 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
      * Used from the Proceed hyperlink when no parameters are defined.
      */
     @RequirePOST
-    @Override
     public HttpResponse doProceedEmpty() {
         preSubmissionCheck();
 
@@ -308,7 +303,6 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
      * REST endpoint to abort the workflow.
      */
     @RequirePOST
-    @Override
     public HttpResponse doAbort() {
         // callback deploy abort event
         postNoticeCallback(NOTICE_ABORT);
@@ -342,7 +336,6 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
     /**
      * Check if the current user can submit the deploy.
      */
-    @Override
     public void preSubmissionCheck() {
         if (isSettled())
             throw new Failure("This deploy has been already given");

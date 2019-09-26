@@ -129,18 +129,18 @@ public class DeployAction extends InputAction implements RunAction2 {
         ids.add(step.getId());
         run.save();
     }
-    @Override
-    public synchronized DeployStepExecution getExecution(String id) throws InterruptedException, TimeoutException {
-        loadExecutions();
-        if (executions == null) {
-            return null;
-        }
-        for (DeployStepExecution e : executions) {
-            if (e.deploy.getId().equals(id))
-                return e;
-        }
-        return null;
-    }
+//    @Override
+//    public synchronized DeployStepExecution getExecution(String id) throws InterruptedException, TimeoutException {
+//        loadExecutions();
+//        if (executions == null) {
+//            return null;
+//        }
+//        for (DeployStepExecution e : executions) {
+//            if (e.deploy.getId().equals(id))
+//                return e;
+//        }
+//        return null;
+//    }
 
 //    @Override
 //    public synchronized List<DeployStepExecution> getExecutions() throws InterruptedException, TimeoutException {
@@ -167,8 +167,8 @@ public class DeployAction extends InputAction implements RunAction2 {
     /**
      * Bind steps just by their ID names.
      */
-    @Override
-    public DeployStepExecution getDynamic(String token) throws InterruptedException, TimeoutException {
-        return getExecution(token);
-    }
+//    @Override
+//    public DeployStepExecution getDynamic(String token) throws InterruptedException, TimeoutException {
+//        return getExecution(token);
+//    }
 }
