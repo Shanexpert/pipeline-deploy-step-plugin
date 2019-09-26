@@ -31,8 +31,6 @@ import org.jenkinsci.plugins.workflow.steps.AbstractStepExecutionImpl;
 import org.jenkinsci.plugins.workflow.steps.FlowInterruptedException;
 import org.jenkinsci.plugins.workflow.steps.StepContextParameter;
 import org.jenkinsci.plugins.workflow.support.actions.PauseAction;
-import org.jenkinsci.plugins.workflow.support.steps.input.InputAction;
-import org.jenkinsci.plugins.workflow.support.steps.input.InputStepExecution;
 import org.jenkinsci.plugins.workflow.support.steps.input.POSTHyperlinkNote;
 import org.kohsuke.stapler.HttpResponse;
 import org.kohsuke.stapler.StaplerRequest;
@@ -143,16 +141,6 @@ public class DeployStepExecution extends AbstractStepExecutionImpl implements Mo
         DeployAction a = run.getAction(DeployAction.class);
         if (a==null)
             run.addAction(a=new DeployAction());
-//        InputAction a = run.getAction(InputAction.class);
-//        if (a==null)
-//            run.addAction(a=new InputAction());
-        return a;
-    }
-
-    private RunningAction getRunningAction() {
-        RunningAction a = run.getAction(RunningAction.class);
-        if (a==null)
-            run.addAction(a=new RunningAction());
         return a;
     }
 
@@ -196,20 +184,12 @@ public class DeployStepExecution extends AbstractStepExecutionImpl implements Mo
      * @param params A map that represents the parameters sent in the request
      * @return A HttpResponse object that represents Status code (200) indicating the request succeeded normally.
      */
-    public HttpResponse proceed(@CheckForNull Map<String,Object> params) {
+    public HttpResponse proceed(@CheckForNull Map<String,Object> params) throws IOException, InterruptedException {
         User user = User.current();
         if (params != null && params.get("deploy") != null && StringUtils.isNotEmpty(params.get("deploy").toString())) {
-//            node.addAction(new WarningAction(Result.NOT_BUILT));
-//            getPauseAction().remove(this);
-            try {
-                getPauseAction().remove(this);
-                getRunningAction().add(this);
-                run.save();
-            } catch (Exception e) {
-                LOGGER.log(Level.WARNING, "failed to remove DeployAction from " + run, e);
-            }
+            node.addAction(new WarningAction(Result.NOT_BUILT));
 
-//            log("Deployed by " + hudson.console.ModelHyperlinkNote.encodeTo(user));
+            log("Deployed by " + hudson.console.ModelHyperlinkNote.encodeTo(user));
             LOGGER.log(Level.INFO, "Deployed by " + hudson.console.ModelHyperlinkNote.encodeTo(user));
             String tenantId = params.get("tenantId") == null ? "" : params.get("tenantId").toString();
             String projectId = params.get("projectId") == null ? "" : params.get("projectId").toString();
@@ -252,8 +232,7 @@ public class DeployStepExecution extends AbstractStepExecutionImpl implements Mo
                 return doAbort();
             }
         }
-//        log("Deploy succeed.");
-        LOGGER.log(Level.INFO, "Deploy succeed.");
+        log("Deploy succeed.");
 
         // callback deploy success event
         postNoticeCallback(NOTICE_SUCCESS);
@@ -279,7 +258,7 @@ public class DeployStepExecution extends AbstractStepExecutionImpl implements Mo
 
     @Deprecated
     @SuppressWarnings("unchecked")
-    public HttpResponse proceed(Object v) {
+    public HttpResponse proceed(Object v) throws IOException, InterruptedException {
         if (v instanceof Map) {
             return proceed(new HashMap<String,Object>((Map) v));
         } else if (v == null) {
@@ -293,7 +272,7 @@ public class DeployStepExecution extends AbstractStepExecutionImpl implements Mo
      * Used from the Proceed hyperlink when no parameters are defined.
      */
     @RequirePOST
-    public HttpResponse doProceedEmpty() {
+    public HttpResponse doProceedEmpty() throws IOException, InterruptedException {
         preSubmissionCheck();
 
         return proceed(null);

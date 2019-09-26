@@ -6,7 +6,6 @@ import jenkins.model.RunAction2;
 import org.jenkinsci.plugins.workflow.flow.FlowExecution;
 import org.jenkinsci.plugins.workflow.flow.FlowExecutionList;
 import org.jenkinsci.plugins.workflow.steps.StepExecution;
-import org.jenkinsci.plugins.workflow.support.steps.input.InputAction;
 
 import javax.annotation.Nonnull;
 import java.io.IOException;
@@ -22,7 +21,7 @@ import java.util.logging.Logger;
 /**
  * Records the pending deploys required.
  */
-public class DeployAction extends InputAction implements RunAction2 {
+public class DeployAction implements RunAction2 {
     private static final Logger LOGGER = Logger.getLogger(DeployAction.class.getName());
 
     /** JENKINS-37154: number of seconds to block in {@link #loadExecutions} before we give up */
@@ -92,7 +91,7 @@ public class DeployAction extends InputAction implements RunAction2 {
             }
         }
     }
-    @Override
+
     public Run<?, ?> getRun() {
         return run;
     }
@@ -129,27 +128,26 @@ public class DeployAction extends InputAction implements RunAction2 {
         ids.add(step.getId());
         run.save();
     }
-//    @Override
-//    public synchronized DeployStepExecution getExecution(String id) throws InterruptedException, TimeoutException {
-//        loadExecutions();
-//        if (executions == null) {
-//            return null;
-//        }
-//        for (DeployStepExecution e : executions) {
-//            if (e.deploy.getId().equals(id))
-//                return e;
-//        }
-//        return null;
-//    }
 
-//    @Override
-//    public synchronized List<DeployStepExecution> getExecutions() throws InterruptedException, TimeoutException {
-//        loadExecutions();
-//        if (executions == null) {
-//            return Collections.emptyList();
-//        }
-//        return new ArrayList<DeployStepExecution>(executions);
-//    }
+    public synchronized DeployStepExecution getExecution(String id) throws InterruptedException, TimeoutException {
+        loadExecutions();
+        if (executions == null) {
+            return null;
+        }
+        for (DeployStepExecution e : executions) {
+            if (e.deploy.getId().equals(id))
+                return e;
+        }
+        return null;
+    }
+
+    public synchronized List<DeployStepExecution> getExecutions() throws InterruptedException, TimeoutException {
+        loadExecutions();
+        if (executions == null) {
+            return Collections.emptyList();
+        }
+        return new ArrayList<DeployStepExecution>(executions);
+    }
 
     /**
      * Called when {@link DeployStepExecution} is completed to remove it from the active deploy list.
@@ -167,8 +165,7 @@ public class DeployAction extends InputAction implements RunAction2 {
     /**
      * Bind steps just by their ID names.
      */
-//    @Override
-//    public DeployStepExecution getDynamic(String token) throws InterruptedException, TimeoutException {
-//        return getExecution(token);
-//    }
+    public DeployStepExecution getDynamic(String token) throws InterruptedException, TimeoutException {
+        return getExecution(token);
+    }
 }
