@@ -105,11 +105,11 @@ public class DeployStepTest extends Assert {
         assertEquals(1, a.getExecutions().size());
 
         DeployStepExecution is = a.getExecution("Icecream");
-        assertEquals("Do you want chocolate?", is.getDeploy().getMessage());
-        assertEquals(1, is.getDeploy().getParameters().size());
-        assertEquals("alice", is.getDeploy().getSubmitter());
+        assertEquals("Do you want chocolate?", is.getInput().getMessage());
+        assertEquals(1, is.getInput().getParameters().size());
+        assertEquals("alice", is.getInput().getSubmitter());
 
-        j.assertEqualDataBoundBeans(is.getDeploy().getParameters().get(0), new BooleanParameterDefinition("chocolate", false, "Favorite icecream flavor"));
+        j.assertEqualDataBoundBeans(is.getInput().getParameters().get(0), new BooleanParameterDefinition("chocolate", false, "Favorite icecream flavor"));
 
         // submit the input, and run workflow to the completion
         JenkinsRule.WebClient wc = j.createWebClient();
@@ -249,8 +249,8 @@ public class DeployStepTest extends Assert {
         assertEquals(1, a.getExecutions().size());
 
         DeployStepExecution is = a.getExecution("Icecream");
-        assertEquals("Do you want chocolate?", is.getDeploy().getMessage());
-        assertEquals("alice,bob", is.getDeploy().getSubmitter());
+        assertEquals("Do you want chocolate?", is.getInput().getMessage());
+        assertEquals("alice,bob", is.getInput().getSubmitter());
 
         // submit the input, and run workflow to the completion
         JenkinsRule.WebClient wc = j.createWebClient();
@@ -287,7 +287,7 @@ public class DeployStepTest extends Assert {
         assertEquals(1, a.getExecutions().size());
 
         DeployStepExecution is = a.getExecution("Icecream");
-        assertEquals("Do you want chocolate?", is.getDeploy().getMessage());
+        assertEquals("Do you want chocolate?", is.getInput().getMessage());
 
         // submit the input, and run workflow to the completion
         JenkinsRule.WebClient wc = j.createWebClient();

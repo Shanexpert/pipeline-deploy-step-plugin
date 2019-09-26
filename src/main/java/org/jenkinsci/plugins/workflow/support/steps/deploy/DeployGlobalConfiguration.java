@@ -14,11 +14,11 @@ public class DeployGlobalConfiguration extends GlobalConfiguration {
     private static final Logger LOGGER = Logger.getLogger(DeployGlobalConfiguration.class.getName());
 
     /**
-     * deploy url
+     * input url
      */
     private String deployCallback = "";
     /**
-     * deploy start notice url
+     * input start notice url
      */
     private String noticeCallback = "";
 

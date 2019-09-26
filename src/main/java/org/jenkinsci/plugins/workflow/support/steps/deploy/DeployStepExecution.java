@@ -27,10 +27,12 @@ import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.jenkinsci.plugins.workflow.actions.WarningAction;
 import org.jenkinsci.plugins.workflow.graph.FlowNode;
-import org.jenkinsci.plugins.workflow.steps.AbstractStepExecutionImpl;
 import org.jenkinsci.plugins.workflow.steps.FlowInterruptedException;
 import org.jenkinsci.plugins.workflow.steps.StepContextParameter;
 import org.jenkinsci.plugins.workflow.support.actions.PauseAction;
+import org.jenkinsci.plugins.workflow.support.steps.input.InputAction;
+import org.jenkinsci.plugins.workflow.support.steps.input.InputStep;
+import org.jenkinsci.plugins.workflow.support.steps.input.InputStepExecution;
 import org.jenkinsci.plugins.workflow.support.steps.input.POSTHyperlinkNote;
 import org.kohsuke.stapler.HttpResponse;
 import org.kohsuke.stapler.StaplerRequest;
@@ -49,7 +51,7 @@ import java.util.logging.Logger;
 /**
  * @author Kohsuke Kawaguchi
  */
-public class DeployStepExecution extends AbstractStepExecutionImpl implements ModelObject {
+public class DeployStepExecution extends InputStepExecution implements ModelObject {
 
     private static final Logger LOGGER = Logger.getLogger(DeployStepExecution.class.getName());
 
@@ -66,39 +68,48 @@ public class DeployStepExecution extends AbstractStepExecutionImpl implements Mo
     @StepContextParameter private transient FlowNode node;
 
     /**
-     * Result of the deploy.
+     * Result of the input.
      */
     private Outcome outcome;
 
     @Inject(optional=true)
-    DeployStep deploy;
+    DeployStep input;
 
-    private void log(String msg, Object... args) throws IOException, InterruptedException {
-        getContext().get(TaskListener.class).getLogger().printf(msg, args);
-        getContext().get(TaskListener.class).getLogger().println();
+    private void log(String msg, Object... args){
+        try {
+            getContext().get(TaskListener.class).getLogger().printf(msg, args);
+            getContext().get(TaskListener.class).getLogger().println();
+        } catch (Exception e) {
+            LOGGER.log(Level.WARNING, "IOException ", e);
+        }
     }
 
     @Override
     public boolean start() throws Exception {
-        // record this deploy
+        // record this input
         getPauseAction().add(this);
+
+        DeployAction deployAction = new DeployAction();
+        run.addAction(deployAction);
+        deployAction.add(this);
 
         // This node causes the flow to pause at this point so we mark it as a "Pause Node".
         node.addAction(new PauseAction("Input"));
 
-        String baseUrl = '/' + run.getUrl() + getPauseAction().getUrlName() + '/';
+//        String baseUrl = '/' + run.getUrl() + getPauseAction().getUrlName() + '/';
+        String baseUrl = '/' + run.getUrl() + "deploy/";
         //JENKINS-40594 submitterParameter does not work without at least one actual parameter
-        if (deploy.getParameters().isEmpty() && deploy.getSubmitterParameter() == null) {
+        if (input.getParameters().isEmpty() && input.getSubmitterParameter() == null) {
             String thisUrl = baseUrl + Util.rawEncode(getId()) + '/';
-            listener.getLogger().printf("%s%n%s or %s%n", deploy.getMessage(),
-                    POSTHyperlinkNote.encodeTo(thisUrl + "proceedEmpty", deploy.getOk()),
+            listener.getLogger().printf("%s%n%s or %s%n", input.getMessage(),
+                    POSTHyperlinkNote.encodeTo(thisUrl + "proceedEmpty", input.getOk()),
                     POSTHyperlinkNote.encodeTo(thisUrl + "abort", "Abort"));
         } else {
             // TODO listener.hyperlink(…) does not work; why?
             // TODO would be even cooler to embed the parameter form right in the build log (hiding it after submission)
             listener.getLogger().println(HyperlinkNote.encodeTo(baseUrl, "Deploy requested"));
         }
-        // callback deploy start event
+        // callback input start event
         postNoticeCallback(NOTICE_READY);
         return false;
     }
@@ -115,21 +126,25 @@ public class DeployStepExecution extends AbstractStepExecutionImpl implements Mo
         });
     }
 
+    @Override
     public String getId() {
-        return deploy.getId();
+        return input.getId();
     }
 
-    public DeployStep getDeploy() {
-        return deploy;
+    @Override
+    public InputStep getInput() {
+        return input;
     }
 
+    @Override
     public Run getRun() {
         return run;
     }
 
     /**
-     * If this deploy step has been decided one way or the other.
+     * If this input step has been decided one way or the other.
      */
+    @Override
     public boolean isSettled() {
         return outcome!=null && !outcome.isDeployed();
     }
@@ -137,45 +152,52 @@ public class DeployStepExecution extends AbstractStepExecutionImpl implements Mo
     /**
      * Gets the {@link DeployAction} that this step should be attached to.
      */
-    private DeployAction getPauseAction() {
-        DeployAction a = run.getAction(DeployAction.class);
+//    private DeployAction getPauseAction() {
+//        DeployAction a = run.getAction(DeployAction.class);
+//        if (a==null)
+//            run.addAction(a=new DeployAction());
+//        return a;
+//    }
+    private InputAction getPauseAction() {
+        InputAction a = run.getAction(InputAction.class);
         if (a==null)
-            run.addAction(a=new DeployAction());
+            run.addAction(a=new InputAction());
         return a;
     }
 
     @Override
     public String getDisplayName() {
-        String message = getDeploy().getMessage();
+//        String message = getInput().getMessage();
+        String message = this.input.getMessage();
         if (message.length()<32)    return message;
         return message.substring(0,32)+"...";
     }
 
 
     /**
-     * Called from the form via browser to submit/abort this deploy step.
+     * Called from the form via browser to submit/abort this input step.
      */
-    @RequirePOST
-    public HttpResponse doSubmit(StaplerRequest request) throws IOException, ServletException, InterruptedException {
-        if (request.getParameter("proceed")!=null) {
-            doProceed(request);
-        } else {
-            doAbort();
-        }
-
-        // go back to the Run console page
-        return HttpResponses.redirectTo("../../console");
-    }
+//    @RequirePOST
+//    public HttpResponse doSubmit(StaplerRequest request) throws IOException, ServletException, InterruptedException {
+//        if (request.getParameter("proceed")!=null) {
+//            doProceed(request);
+//        } else {
+//            doAbort();
+//        }
+//
+//        // go back to the Run console page
+//        return HttpResponses.redirectTo("../../console");
+//    }
 
     /**
-     * REST endpoint to submit the deploy.
+     * REST endpoint to submit the input.
      */
-    @RequirePOST
-    public HttpResponse doProceed(StaplerRequest request) throws IOException, ServletException, InterruptedException {
-        preSubmissionCheck();
-        Map<String,Object> v = parseValue(request);
-        return proceed(v);
-    }
+//    @RequirePOST
+//    public HttpResponse doProceed(StaplerRequest request) throws IOException, ServletException, InterruptedException {
+//        preSubmissionCheck();
+//        Map<String,Object> v = parseValue(request);
+//        return proceed(v);
+//    }
 
     /**
      * Processes the acceptance (approval) request.
@@ -184,9 +206,10 @@ public class DeployStepExecution extends AbstractStepExecutionImpl implements Mo
      * @param params A map that represents the parameters sent in the request
      * @return A HttpResponse object that represents Status code (200) indicating the request succeeded normally.
      */
-    public HttpResponse proceed(@CheckForNull Map<String,Object> params) throws IOException, InterruptedException {
+    @Override
+    public HttpResponse proceed(@CheckForNull Map<String,Object> params) {
         User user = User.current();
-        if (params != null && params.get("deploy") != null && StringUtils.isNotEmpty(params.get("deploy").toString())) {
+        if (params != null && params.get("input") != null && StringUtils.isNotEmpty(params.get("input").toString())) {
             node.addAction(new WarningAction(Result.NOT_BUILT));
 
             log("Deployed by " + hudson.console.ModelHyperlinkNote.encodeTo(user));
@@ -208,9 +231,9 @@ public class DeployStepExecution extends AbstractStepExecutionImpl implements Mo
                 getContext().onFailure(e);
                 return HttpResponses.ok();
             }
-            // curl deploy url
+            // curl input url
             String deployUrl = GlobalConfiguration.all().get(DeployGlobalConfiguration.class).getDeployCallback();
-            String url = deployUrl + MessageFormat.format("/api/v1/kubernetes/tenants/{0}/projects/{1}/leoapps/{2}/tpls/{3}/clusters/{4}/deploy", tenantId, projectId, appId, tplId, env);
+            String url = deployUrl + MessageFormat.format("/api/v1/kubernetes/tenants/{0}/projects/{1}/leoapps/{2}/tpls/{3}/clusters/{4}/input", tenantId, projectId, appId, tplId, env);
             JSONObject jsonObject = new JSONObject();
             jsonObject.put("runId", run.getNumber());
             jsonObject.put("stepId", getId());
@@ -234,7 +257,7 @@ public class DeployStepExecution extends AbstractStepExecutionImpl implements Mo
         }
         log("Deploy succeed.");
 
-        // callback deploy success event
+        // callback input success event
         postNoticeCallback(NOTICE_SUCCESS);
 
         String approverId = null;
@@ -256,34 +279,35 @@ public class DeployStepExecution extends AbstractStepExecutionImpl implements Mo
         return HttpResponses.ok();
     }
 
-    @Deprecated
-    @SuppressWarnings("unchecked")
-    public HttpResponse proceed(Object v) throws IOException, InterruptedException {
-        if (v instanceof Map) {
-            return proceed(new HashMap<String,Object>((Map) v));
-        } else if (v == null) {
-            return proceed(null);
-        } else {
-            return proceed(Collections.singletonMap("parameter", v));
-        }
-    }
+//    @Deprecated
+//    @SuppressWarnings("unchecked")
+//    public HttpResponse proceed(Object v) throws IOException, InterruptedException {
+//        if (v instanceof Map) {
+//            return proceed(new HashMap<String,Object>((Map) v));
+//        } else if (v == null) {
+//            return proceed(null);
+//        } else {
+//            return proceed(Collections.singletonMap("parameter", v));
+//        }
+//    }
 
     /**
      * Used from the Proceed hyperlink when no parameters are defined.
      */
-    @RequirePOST
-    public HttpResponse doProceedEmpty() throws IOException, InterruptedException {
-        preSubmissionCheck();
-
-        return proceed(null);
-    }
+//    @RequirePOST
+//    public HttpResponse doProceedEmpty() throws IOException, InterruptedException {
+//        preSubmissionCheck();
+//
+//        return proceed(null);
+//    }
 
     /**
      * REST endpoint to abort the workflow.
      */
     @RequirePOST
+    @Override
     public HttpResponse doAbort() {
-        // callback deploy abort event
+        // callback input abort event
         postNoticeCallback(NOTICE_ABORT);
 
         preAbortCheck();
@@ -298,14 +322,14 @@ public class DeployStepExecution extends AbstractStepExecutionImpl implements Mo
     }
 
     /**
-     * Check if the current user can abort/cancel the run from the deploy.
+     * Check if the current user can abort/cancel the run from the input.
      */
     private void preAbortCheck() {
         if (isSettled()) {
-            throw new Failure("This deploy has been already given");
+            throw new Failure("This input has been already given");
         } if (!canCancel() && !canSubmit()) {
-            if (deploy.getSubmitter() != null) {
-                throw new Failure("You need to be '" + deploy.getSubmitter() + "' (or have Job/Cancel permissions) to cancel this.");
+            if (input.getSubmitter() != null) {
+                throw new Failure("You need to be '" + input.getSubmitter() + "' (or have Job/Cancel permissions) to cancel this.");
             } else {
                 throw new Failure("You need to have Job/Cancel permissions to cancel this.");
             }
@@ -313,19 +337,19 @@ public class DeployStepExecution extends AbstractStepExecutionImpl implements Mo
     }
 
     /**
-     * Check if the current user can submit the deploy.
+     * Check if the current user can submit the input.
      */
-    public void preSubmissionCheck() {
-        if (isSettled())
-            throw new Failure("This deploy has been already given");
-        if (!canSubmit()) {
-            if (deploy.getSubmitter() != null) {
-                throw new Failure("You need to be " + deploy.getSubmitter() + " to submit this.");
-            } else {
-                throw new Failure("You need to have Job/Build permissions to submit this.");
-            }
-        }
-    }
+//    public void preSubmissionCheck() {
+//        if (isSettled())
+//            throw new Failure("This input has been already given");
+//        if (!canSubmit()) {
+//            if (input.getSubmitter() != null) {
+//                throw new Failure("You need to be " + input.getSubmitter() + " to submit this.");
+//            } else {
+//                throw new Failure("You need to have Job/Build permissions to submit this.");
+//            }
+//        }
+//    }
 
     private void postSettlement() {
         try {
@@ -356,10 +380,10 @@ public class DeployStepExecution extends AbstractStepExecutionImpl implements Mo
     }
 
     /**
-     * Checks if the given user can settle this deploy.
+     * Checks if the given user can settle this input.
      */
     private boolean canSettle(Authentication a) {
-        String submitter = deploy.getSubmitter();
+        String submitter = input.getSubmitter();
         if (submitter==null)
             return getRun().getParent().hasPermission(Job.BUILD);
         if (!Jenkins.get().isUseSecurity() || Jenkins.get().hasPermission(Jenkins.ADMINISTER)) {
@@ -402,7 +426,7 @@ public class DeployStepExecution extends AbstractStepExecutionImpl implements Mo
      */
     private Map<String,Object> parseValue(StaplerRequest request) throws ServletException, IOException, InterruptedException {
         Map<String, Object> mapResult = new HashMap<String, Object>();
-        List<ParameterDefinition> defs = deploy.getParameters();
+        List<ParameterDefinition> defs = input.getParameters();
         Set<ParameterValue> vals = new HashSet<>(defs.size());
 
         Object params = request.getSubmittedForm().get("parameter");
@@ -438,7 +462,7 @@ public class DeployStepExecution extends AbstractStepExecutionImpl implements Mo
         run.replaceAction(binder);
 
         // If a destination value is specified, push the submitter to it.
-        String valueName = deploy.getSubmitterParameter();
+        String valueName = input.getSubmitterParameter();
         if (valueName != null && !valueName.isEmpty()) {
             mapResult.put(valueName, userId);
         }
@@ -467,7 +491,7 @@ public class DeployStepExecution extends AbstractStepExecutionImpl implements Mo
      * @return
      */
     public Boolean postNoticeCallback(String type)  {
-        // callback deploy start event
+        // callback input start event
         String noticeCallback = GlobalConfiguration.all().get(DeployGlobalConfiguration.class).getNoticeCallback();
         try {
             if (StringUtils.isEmpty(noticeCallback)) {
@@ -517,7 +541,7 @@ public class DeployStepExecution extends AbstractStepExecutionImpl implements Mo
                 return true;
             }
         } catch (Exception e) {
-            LOGGER.log(Level.WARNING, "curl deploy url error, " + run, e);
+            LOGGER.log(Level.WARNING, "curl input url error, " + run, e);
         } finally {
             if (response != null) {
                 try {

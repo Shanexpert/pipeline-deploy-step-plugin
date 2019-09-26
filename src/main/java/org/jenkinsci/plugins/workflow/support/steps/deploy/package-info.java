@@ -1,5 +1,5 @@
 /**
- * Step that waits for a human being to provide and deploy.
+ * Step that waits for a human being to provide and input.
  *
  * The workflow version of {@link javax.swing.JOptionPane}.
  */

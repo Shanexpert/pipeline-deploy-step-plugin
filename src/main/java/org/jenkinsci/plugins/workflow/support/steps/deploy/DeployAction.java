@@ -79,7 +79,7 @@ public class DeployAction implements RunAction2 {
                     }
                 }
                 if (executions.size() < ids.size()) {
-                    LOGGER.log(Level.WARNING, "some deploy IDs not restored from {0}", run);
+                    LOGGER.log(Level.WARNING, "some input IDs not restored from {0}", run);
                 }
             } else {
                 LOGGER.log(Level.WARNING, "no flow execution found for {0}", run);
@@ -135,7 +135,7 @@ public class DeployAction implements RunAction2 {
             return null;
         }
         for (DeployStepExecution e : executions) {
-            if (e.deploy.getId().equals(id))
+            if (e.input.getId().equals(id))
                 return e;
         }
         return null;
@@ -150,7 +150,7 @@ public class DeployAction implements RunAction2 {
     }
 
     /**
-     * Called when {@link DeployStepExecution} is completed to remove it from the active deploy list.
+     * Called when {@link DeployStepExecution} is completed to remove it from the active input list.
      */
     public synchronized void remove(DeployStepExecution exec) throws IOException, InterruptedException, TimeoutException {
         loadExecutions();

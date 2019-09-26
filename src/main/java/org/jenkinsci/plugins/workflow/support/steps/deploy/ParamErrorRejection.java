@@ -6,7 +6,7 @@ import org.kohsuke.stapler.export.Exported;
 import javax.annotation.CheckForNull;
 
 /**
- * Indicates that the deploy step was rejected by the user.
+ * Indicates that the input step was rejected by the user.
  */
 public final class ParamErrorRejection extends CauseOfInterruption {
 

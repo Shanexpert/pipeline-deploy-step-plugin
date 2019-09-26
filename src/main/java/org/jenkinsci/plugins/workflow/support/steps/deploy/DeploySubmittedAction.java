@@ -34,7 +34,7 @@ import java.util.Map;
 public class DeploySubmittedAction implements PersistentAction {
 
     /**
-     * Parameters, if any, submitted when the deploy was approved.
+     * Parameters, if any, submitted when the input was approved.
      */
     private final Map<String,Object> parameters = new LinkedHashMap<>();
 
