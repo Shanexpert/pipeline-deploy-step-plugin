@@ -22,7 +22,7 @@
  * THE SOFTWARE.
  */
 
-package org.jenkinsci.plugins.workflow.support.steps.input;
+package org.jenkinsci.plugins.workflow.support.steps.deploy;
 
 import org.jenkinsci.plugins.workflow.actions.PersistentAction;
 
@@ -31,10 +31,10 @@ import javax.annotation.Nonnull;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-public class InputSubmittedAction implements PersistentAction {
+public class DeploySubmittedAction implements PersistentAction {
 
     /**
-     * Parameters, if any, submitted when the input was approved.
+     * Parameters, if any, submitted when the deploy was approved.
      */
     private final Map<String,Object> parameters = new LinkedHashMap<>();
 
@@ -43,7 +43,7 @@ public class InputSubmittedAction implements PersistentAction {
      */
     private final String approver;
 
-    public InputSubmittedAction(String approver, @CheckForNull Map<String,Object> parameters) {
+    public DeploySubmittedAction(String approver, @CheckForNull Map<String,Object> parameters) {
         this.approver = approver;
         if (parameters != null) {
             this.parameters.putAll(parameters);
@@ -67,7 +67,7 @@ public class InputSubmittedAction implements PersistentAction {
 
     @Override
     public String getDisplayName() {
-        return Messages.input_submitted();
+        return Messages.deploy_submitted();
     }
 
     @Override

@@ -22,7 +22,7 @@
  * THE SOFTWARE.
  */
 
-package org.jenkinsci.plugins.workflow.support.steps.input;
+package org.jenkinsci.plugins.workflow.support.steps.deploy;
 
 import hudson.model.Executor;
 import hudson.model.Result;
@@ -45,7 +45,7 @@ import org.jvnet.hudson.test.BuildWatcher;
 import org.jvnet.hudson.test.Issue;
 import org.jvnet.hudson.test.RestartableJenkinsRule;
 
-public class InputStepRestartTest {
+public class DeployStepRestartTest {
 
     @ClassRule public static BuildWatcher buildWatcher = new BuildWatcher();
     @Rule public RestartableJenkinsRule story = new RestartableJenkinsRule();
@@ -71,7 +71,7 @@ public class InputStepRestartTest {
     }
     
     private void proceed(WorkflowRun b) throws Exception {
-        InputAction a = b.getAction(InputAction.class);
+        DeployAction a = b.getAction(DeployAction.class);
         assertNotNull(a);
         assertEquals(1, a.getExecutions().size());
         story.j.submit(story.j.createWebClient().getPage(b, a.getUrlName()).getFormByName(a.getExecutions().get(0).getId()), "proceed");
@@ -85,7 +85,7 @@ public class InputStepRestartTest {
         assertEquals(1, pauses.size());
         assertFalse(pauses.get(0).isPaused());
         String xml = FileUtils.readFileToString(new File(b.getRootDir(), "build.xml"));
-        assertFalse(xml, xml.contains(InputStepExecution.class.getName()));
+        assertFalse(xml, xml.contains(DeployStepExecution.class.getName()));
     }
 
     @Issue("JENKINS-37154")

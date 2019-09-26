@@ -1,4 +1,4 @@
-package org.jenkinsci.plugins.workflow.support.steps.input;
+package org.jenkinsci.plugins.workflow.support.steps.deploy;
 
 import com.google.common.collect.Sets;
 import hudson.Extension;
@@ -18,15 +18,15 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * {@link Step} that pauses for human input.
+ * {@link Step} that pauses for human deploy.
  *
  * @author Kohsuke Kawaguchi
  */
-public class InputStep extends AbstractStepImpl implements Serializable {
+public class DeployStep extends AbstractStepImpl implements Serializable {
     private final String message;
 
     /**
-     * Optional ID that uniquely identifies this input from all others.
+     * Optional ID that uniquely identifies this deploy from all others.
      */
     private String id;
 
@@ -36,7 +36,7 @@ public class InputStep extends AbstractStepImpl implements Serializable {
     private String submitter;
 
     /**
-     * Optional parameter name to stored the user who responded to the input.
+     * Optional parameter name to stored the user who responded to the deploy.
      */
     private String submitterParameter;
 
@@ -52,9 +52,9 @@ public class InputStep extends AbstractStepImpl implements Serializable {
     private String ok;
 
     @DataBoundConstructor
-    public InputStep(String message) {
+    public DeployStep(String message) {
         if (message==null)
-            message = "Pipeline has paused and needs your input before proceeding";
+            message = "Pipeline has paused and needs your deploy before proceeding";
         this.message = message;
     }
 
@@ -88,7 +88,7 @@ public class InputStep extends AbstractStepImpl implements Serializable {
             return null;
         if (id.length()==0)
             throw new IllegalArgumentException();
-        // a-z as the first char is reserved for InputAction
+        // a-z as the first char is reserved for DeployAction
         char ch = id.charAt(0);
         if ('a'<=ch && ch<='z')
             id = ((char)(ch-'a'+'A')) + id.substring(1);
@@ -125,7 +125,7 @@ public class InputStep extends AbstractStepImpl implements Serializable {
     }
 
     /**
-     * Checks if the given user can settle this input.
+     * Checks if the given user can settle this deploy.
      */
     @Deprecated
     public boolean canSettle(Authentication a) {
@@ -151,17 +151,17 @@ public class InputStep extends AbstractStepImpl implements Serializable {
     public static class DescriptorImpl extends AbstractStepDescriptorImpl {
 
         public DescriptorImpl() {
-            super(InputStepExecution.class);
+            super(DeployStepExecution.class);
         }
 
         @Override
         public String getFunctionName() {
-            return "input";
+            return "deploy";
         }
 
         @Override
         public String getDisplayName() {
-            return Messages.wait_for_interactive_input();
+            return Messages.wait_for_interactive_deploy();
         }
     }
 }

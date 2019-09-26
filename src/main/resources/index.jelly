@@ -25,5 +25,5 @@ THE SOFTWARE.
 
 <?jelly escape-by-default='true'?>
 <j:jelly xmlns:j="jelly:core">
-    Adds the Pipeline step <code>input</code> to wait for human input or approval.
+    Adds the Pipeline step <code>deploy</code> to wait for human input or deploy.
 </j:jelly>

@@ -1,4 +1,4 @@
-package org.jenkinsci.plugins.workflow.support.steps.input;
+package org.jenkinsci.plugins.workflow.support.steps.deploy;
 
 import java.io.Serializable;
 import java.lang.reflect.InvocationTargetException;
@@ -14,11 +14,13 @@ import java.lang.reflect.InvocationTargetException;
 public final class Outcome implements Serializable {
     private final Object normal;
     private final Throwable abnormal;
+    private final Boolean deployed;
 
-    public Outcome(Object normal, Throwable abnormal) {
-        assert normal==null || abnormal==null;
+    public Outcome(Object normal, Throwable abnormal, Boolean deployed) {
+        assert normal==null || abnormal==null || deployed==null;
         this.normal = normal;
         this.abnormal = abnormal;
+        this.deployed = deployed;
     }
 
     /**
@@ -54,10 +56,14 @@ public final class Outcome implements Serializable {
         return abnormal!=null;
     }
 
+    public boolean isDeployed() {
+        return deployed;
+    }
+
     @Override
     public String toString() {
-        if (abnormal!=null)     return "abnormal["+abnormal+']';
-        else                    return "normal["+normal+']';
+        if (abnormal!=null)     return "abnormal["+abnormal+"],deployed["+deployed+']';
+        else                    return "normal["+normal+"],deployed["+deployed+']';
     }
 
     private static final long serialVersionUID = 1L;

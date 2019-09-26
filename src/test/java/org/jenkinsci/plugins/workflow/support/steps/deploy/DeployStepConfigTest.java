@@ -22,7 +22,7 @@
  * THE SOFTWARE.
  */
 
-package org.jenkinsci.plugins.workflow.support.steps.input;
+package org.jenkinsci.plugins.workflow.support.steps.deploy;
 
 import java.util.Collections;
 
@@ -34,13 +34,13 @@ import org.junit.Rule;
 import org.jvnet.hudson.test.Issue;
 import org.jvnet.hudson.test.JenkinsRule;
 
-public class InputStepConfigTest {
+public class DeployStepConfigTest {
     
     @Rule public JenkinsRule r = new JenkinsRule();
 
     @Test public void configRoundTrip() throws Exception {
-        InputStep s1 = new InputStep("hello world");
-        InputStep s2 = new StepConfigTester(r).configRoundTrip(s1);
+        DeployStep s1 = new DeployStep("hello world");
+        DeployStep s2 = new StepConfigTester(r).configRoundTrip(s1);
         assertEquals(s1.getMessage(), s2.getMessage());
         assertEquals(s1.getId(), s2.getId());
         assertEquals(s1.getParameters(), s2.getParameters());
@@ -50,7 +50,7 @@ public class InputStepConfigTest {
 
     @Issue("JENKINS-25779")
     @Test public void uninstantiate() throws Exception {
-        InputStep s = new InputStep("hello world");
+        DeployStep s = new DeployStep("hello world");
         assertEquals(Collections.singletonMap("message", s.getMessage()), DescribableModel.uninstantiate_(s));
     }
 

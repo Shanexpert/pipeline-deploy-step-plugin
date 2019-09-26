@@ -22,7 +22,7 @@
  * THE SOFTWARE.
  */
 
-package org.jenkinsci.plugins.workflow.support.steps.input;
+package org.jenkinsci.plugins.workflow.support.steps.deploy;
 
 import com.cloudbees.plugins.credentials.CredentialsParameterDefinition;
 import com.cloudbees.plugins.credentials.CredentialsParameterValue;
@@ -35,19 +35,8 @@ import com.gargoylesoftware.htmlunit.html.HtmlElementUtil;
 import com.gargoylesoftware.htmlunit.html.HtmlForm;
 import com.gargoylesoftware.htmlunit.html.HtmlPage;
 import com.google.common.base.Predicate;
-import hudson.model.BooleanParameterDefinition;
-import hudson.model.Cause;
-import hudson.model.CauseAction;
-import hudson.model.Job;
-import hudson.model.ParametersAction;
-import hudson.model.ParametersDefinitionProperty;
-import hudson.model.Result;
-import hudson.model.User;
+import hudson.model.*;
 import hudson.model.queue.QueueTaskFuture;
-
-
-import java.io.IOException;
-
 import hudson.security.ACL;
 import hudson.security.ACLContext;
 import hudson.util.Secret;
@@ -68,19 +57,18 @@ import org.junit.Test;
 import org.jvnet.hudson.test.BuildWatcher;
 import org.jvnet.hudson.test.Issue;
 import org.jvnet.hudson.test.JenkinsRule;
+import org.jvnet.hudson.test.MockAuthorizationStrategy;
 
+import javax.annotation.Nullable;
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.UUID;
 
-import org.jvnet.hudson.test.MockAuthorizationStrategy;
-
-import javax.annotation.Nullable;
-
 /**
  * @author Kohsuke Kawaguchi
  */
-public class InputStepTest extends Assert {
+public class DeployStepTest extends Assert {
     @Rule public JenkinsRule j = new JenkinsRule();
 
     @ClassRule
@@ -108,20 +96,20 @@ public class InputStepTest extends Assert {
         WorkflowRun b = q.getStartCondition().get();
         CpsFlowExecution e = (CpsFlowExecution) b.getExecutionPromise().get();
 
-        while (b.getAction(InputAction.class)==null) {
+        while (b.getAction(DeployAction.class)==null) {
             e.waitForSuspension();
         }
 
         // make sure we are pausing at the right state that reflects what we wrote in the program
-        InputAction a = b.getAction(InputAction.class);
+        DeployAction a = b.getAction(DeployAction.class);
         assertEquals(1, a.getExecutions().size());
 
-        InputStepExecution is = a.getExecution("Icecream");
-        assertEquals("Do you want chocolate?", is.getInput().getMessage());
-        assertEquals(1, is.getInput().getParameters().size());
-        assertEquals("alice", is.getInput().getSubmitter());
+        DeployStepExecution is = a.getExecution("Icecream");
+        assertEquals("Do you want chocolate?", is.getDeploy().getMessage());
+        assertEquals(1, is.getDeploy().getParameters().size());
+        assertEquals("alice", is.getDeploy().getSubmitter());
 
-        j.assertEqualDataBoundBeans(is.getInput().getParameters().get(0), new BooleanParameterDefinition("chocolate", false, "Favorite icecream flavor"));
+        j.assertEqualDataBoundBeans(is.getDeploy().getParameters().get(0), new BooleanParameterDefinition("chocolate", false, "Favorite icecream flavor"));
 
         // submit the input, and run workflow to the completion
         JenkinsRule.WebClient wc = j.createWebClient();
@@ -157,15 +145,15 @@ public class InputStepTest extends Assert {
         FlowNode nodeWithInputSubmittedAction = scanner.findFirstMatch(e.getCurrentHeads(), null, new Predicate<FlowNode>() {
             @Override
             public boolean apply(@Nullable FlowNode input) {
-                return input != null && input.getAction(InputSubmittedAction.class) != null;
+                return input != null && input.getAction(DeploySubmittedAction.class) != null;
             }
         });
         assertNotNull(nodeWithInputSubmittedAction);
-        InputSubmittedAction inputSubmittedAction = nodeWithInputSubmittedAction.getAction(InputSubmittedAction.class);
-        assertNotNull(inputSubmittedAction);
+        DeploySubmittedAction deploySubmittedAction = nodeWithInputSubmittedAction.getAction(DeploySubmittedAction.class);
+        assertNotNull(deploySubmittedAction);
 
-        assertEquals("alice", inputSubmittedAction.getApprover());
-        Map<String,Object> submittedParams = inputSubmittedAction.getParameters();
+        assertEquals("alice", deploySubmittedAction.getApprover());
+        Map<String,Object> submittedParams = deploySubmittedAction.getParameters();
         assertEquals(1, submittedParams.size());
         assertTrue(submittedParams.containsKey("chocolate"));
         assertEquals(false, submittedParams.get("chocolate"));
@@ -257,12 +245,12 @@ public class InputStepTest extends Assert {
         j.waitForMessage("input", b);
 
         // make sure we are pausing at the right state that reflects what we wrote in the program
-        InputAction a = b.getAction(InputAction.class);
+        DeployAction a = b.getAction(DeployAction.class);
         assertEquals(1, a.getExecutions().size());
 
-        InputStepExecution is = a.getExecution("Icecream");
-        assertEquals("Do you want chocolate?", is.getInput().getMessage());
-        assertEquals("alice,bob", is.getInput().getSubmitter());
+        DeployStepExecution is = a.getExecution("Icecream");
+        assertEquals("Do you want chocolate?", is.getDeploy().getMessage());
+        assertEquals("alice,bob", is.getDeploy().getSubmitter());
 
         // submit the input, and run workflow to the completion
         JenkinsRule.WebClient wc = j.createWebClient();
@@ -295,11 +283,11 @@ public class InputStepTest extends Assert {
         j.waitForMessage("input", b);
 
         // make sure we are pausing at the right state that reflects what we wrote in the program
-        InputAction a = b.getAction(InputAction.class);
+        DeployAction a = b.getAction(DeployAction.class);
         assertEquals(1, a.getExecutions().size());
 
-        InputStepExecution is = a.getExecution("Icecream");
-        assertEquals("Do you want chocolate?", is.getInput().getMessage());
+        DeployStepExecution is = a.getExecution("Icecream");
+        assertEquals("Do you want chocolate?", is.getDeploy().getMessage());
 
         // submit the input, and run workflow to the completion
         JenkinsRule.WebClient wc = j.createWebClient();
@@ -319,19 +307,19 @@ public class InputStepTest extends Assert {
         WorkflowRun run = queueTaskFuture.getStartCondition().get();
         CpsFlowExecution execution = (CpsFlowExecution) run.getExecutionPromise().get();
 
-        while (run.getAction(InputAction.class) == null) {
+        while (run.getAction(DeployAction.class) == null) {
             execution.waitForSuspension();
         }
 
         webClient.login(loginAs);
 
-        InputAction inputAction = run.getAction(InputAction.class);
-        InputStepExecution is = inputAction.getExecution("InputX");
-        HtmlPage p = webClient.getPage(run, inputAction.getUrlName());
+        DeployAction deployAction = run.getAction(DeployAction.class);
+        DeployStepExecution is = deployAction.getExecution("InputX");
+        HtmlPage p = webClient.getPage(run, deployAction.getUrlName());
 
         try {
             j.submit(p.getFormByName(is.getId()), "abort");
-            assertEquals(0, inputAction.getExecutions().size());
+            assertEquals(0, deployAction.getExecutions().size());
             queueTaskFuture.get();
 
             assertTrue(expectAbortOk);
@@ -348,19 +336,19 @@ public class InputStepTest extends Assert {
         WorkflowRun run = queueTaskFuture.getStartCondition().get();
         CpsFlowExecution execution = (CpsFlowExecution) run.getExecutionPromise().get();
 
-        while (run.getAction(InputAction.class) == null) {
+        while (run.getAction(DeployAction.class) == null) {
             execution.waitForSuspension();
         }
 
         webClient.login(loginAs);
 
-        InputAction inputAction = run.getAction(InputAction.class);
-        InputStepExecution is = inputAction.getExecution("InputX");
-        HtmlPage p = webClient.getPage(run, inputAction.getUrlName());
+        DeployAction deployAction = run.getAction(DeployAction.class);
+        DeployStepExecution is = deployAction.getExecution("InputX");
+        HtmlPage p = webClient.getPage(run, deployAction.getUrlName());
 
         try {
             j.submit(p.getFormByName(is.getId()), "proceed");
-            assertEquals(0, inputAction.getExecutions().size());
+            assertEquals(0, deployAction.getExecutions().size());
             queueTaskFuture.get();
 
             assertTrue(expectContinueOk);
@@ -447,11 +435,11 @@ public class InputStepTest extends Assert {
     }
 
     private void selectUserCredentials(JenkinsRule.WebClient wc, WorkflowRun run, CpsFlowExecution execution, String credentialsId, String username, String inputId) throws Exception {
-        while (run.getAction(InputAction.class) == null) {
+        while (run.getAction(DeployAction.class) == null) {
             execution.waitForSuspension();
         }
         wc.login(username);
-        final InputAction action = run.getAction(InputAction.class);
+        final DeployAction action = run.getAction(DeployAction.class);
         final HtmlForm form = wc.getPage(run, action.getUrlName()).getFormByName(action.getExecution(inputId).getId());
         HtmlElementUtil.click(form.getInputByName("includeUser"));
         form.getSelectByName("_.value").setSelectedAttribute(credentialsId, true);

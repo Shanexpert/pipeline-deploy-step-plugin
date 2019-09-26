@@ -7,11 +7,11 @@
         <version>3.48</version>
         <relativePath />
     </parent>
-    <artifactId>pipeline-input-step</artifactId>
+    <artifactId>leo-deploy-step</artifactId>
     <version>${revision}${changelist}</version>
     <packaging>hpi</packaging>
-    <name>Pipeline: Input Step</name>
-    <url>https://wiki.jenkins.io/display/JENKINS/Pipeline+Input+Step+Plugin</url>
+    <name>Leo Deploy Step</name>
+    <url>https://wiki.jenkins.io/display/JENKINS/Leo+Deploy+Step+Plugin</url>
     <licenses>
         <license>
             <name>MIT License</name>
@@ -118,5 +118,21 @@
             <version>1.18</version>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>org.jenkins-ci.plugins</groupId>
+            <artifactId>pipeline-input-step</artifactId>
+            <version>2.8</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.httpcomponents</groupId>
+            <artifactId>httpclient</artifactId>
+            <version>4.5.5</version>
+        </dependency>
+        <!-- https://mvnrepository.com/artifact/com.google.code.gson/gson -->
+        <!--<dependency>-->
+            <!--<groupId>com.google.code.gson</groupId>-->
+            <!--<artifactId>gson</artifactId>-->
+            <!--<version>2.8.5</version>-->
+        <!--</dependency>-->
     </dependencies>
 </project>

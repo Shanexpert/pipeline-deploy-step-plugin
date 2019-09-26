@@ -1,4 +1,4 @@
-package org.jenkinsci.plugins.workflow.support.steps.input;
+package org.jenkinsci.plugins.workflow.support.steps.deploy;
 
 import hudson.model.User;
 import javax.annotation.CheckForNull;
@@ -6,7 +6,7 @@ import jenkins.model.CauseOfInterruption;
 import org.kohsuke.stapler.export.Exported;
 
 /**
- * Indicates that the input step was rejected by the user.
+ * Indicates that the deploy step was rejected by the user.
  */
 public final class Rejection extends CauseOfInterruption {
 
