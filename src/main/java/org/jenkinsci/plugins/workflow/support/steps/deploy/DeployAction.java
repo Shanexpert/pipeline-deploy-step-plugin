@@ -1,11 +1,15 @@
 package org.jenkinsci.plugins.workflow.support.steps.deploy;
 
+import com.google.gson.Gson;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import hudson.model.Run;
 import jenkins.model.RunAction2;
 import org.jenkinsci.plugins.workflow.flow.FlowExecution;
 import org.jenkinsci.plugins.workflow.flow.FlowExecutionList;
 import org.jenkinsci.plugins.workflow.steps.StepExecution;
+import org.jenkinsci.plugins.workflow.support.steps.input.InputAction;
+import org.jenkinsci.plugins.workflow.support.steps.input.InputStep;
+import org.jenkinsci.plugins.workflow.support.steps.input.InputStepExecution;
 
 import javax.annotation.Nonnull;
 import java.io.IOException;
@@ -21,7 +25,7 @@ import java.util.logging.Logger;
 /**
  * Records the pending deploys required.
  */
-public class DeployAction implements RunAction2 {
+public class DeployAction extends InputAction implements RunAction2 {
     private static final Logger LOGGER = Logger.getLogger(DeployAction.class.getName());
 
     /** JENKINS-37154: number of seconds to block in {@link #loadExecutions} before we give up */
@@ -92,6 +96,7 @@ public class DeployAction implements RunAction2 {
         }
     }
 
+    @Override
     public Run<?, ?> getRun() {
         return run;
     }
@@ -129,6 +134,7 @@ public class DeployAction implements RunAction2 {
         run.save();
     }
 
+    @Override
     public synchronized DeployStepExecution getExecution(String id) throws InterruptedException, TimeoutException {
         loadExecutions();
         if (executions == null) {
@@ -141,12 +147,26 @@ public class DeployAction implements RunAction2 {
         return null;
     }
 
-    public synchronized List<DeployStepExecution> getExecutions() throws InterruptedException, TimeoutException {
+    @Override
+    public synchronized List<InputStepExecution> getExecutions() throws InterruptedException, TimeoutException {
+        LOGGER.log(Level.WARNING, "getExecutions");
         loadExecutions();
+        Gson gson = new Gson();
+        LOGGER.log(Level.WARNING, "getExecutions," + (executions== null ? "null" : ""));
+        for(DeployStepExecution execution : executions) {
+            if (execution.getInput() == null) {
+                LOGGER.log(Level.WARNING, "execution input is is null");
+            } else {
+                LOGGER.log(Level.WARNING, "execution input id is " + execution.getInput().getId());
+                LOGGER.log(Level.WARNING, "execution input instanceof DeployStep is " + (execution.getInput() instanceof DeployStep));
+                LOGGER.log(Level.WARNING, "execution input instanceof InputStep is " + (execution.getInput() instanceof InputStep));
+            }
+        }
+
         if (executions == null) {
             return Collections.emptyList();
         }
-        return new ArrayList<DeployStepExecution>(executions);
+        return new ArrayList<InputStepExecution>(executions);
     }
 
     /**
@@ -165,6 +185,7 @@ public class DeployAction implements RunAction2 {
     /**
      * Bind steps just by their ID names.
      */
+    @Override
     public DeployStepExecution getDynamic(String token) throws InterruptedException, TimeoutException {
         return getExecution(token);
     }

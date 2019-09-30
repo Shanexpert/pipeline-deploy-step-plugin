@@ -24,54 +24,22 @@
 
 package org.jenkinsci.plugins.workflow.support.steps.deploy;
 
-import org.jenkinsci.plugins.workflow.actions.PersistentAction;
+import org.jenkinsci.plugins.workflow.support.steps.input.InputSubmittedAction;
 
 import javax.annotation.CheckForNull;
-import javax.annotation.Nonnull;
-import java.util.LinkedHashMap;
 import java.util.Map;
 
-public class DeploySubmittedAction implements PersistentAction {
-
-    /**
-     * Parameters, if any, submitted when the input was approved.
-     */
-    private final Map<String,Object> parameters = new LinkedHashMap<>();
-
-    /**
-     * The user ID of the approving user.
-     */
-    private final String approver;
+/**
+ * @author bangdao
+ */
+public class DeploySubmittedAction extends InputSubmittedAction {
 
     public DeploySubmittedAction(String approver, @CheckForNull Map<String,Object> parameters) {
-        this.approver = approver;
-        if (parameters != null) {
-            this.parameters.putAll(parameters);
-        }
-    }
-
-    @Nonnull
-    public Map<String,Object> getParameters() {
-        return parameters;
-    }
-
-    @CheckForNull
-    public String getApprover() {
-        return approver;
-    }
-
-    @Override
-    public String getIconFileName() {
-        return null;
+        super(approver, parameters);
     }
 
     @Override
     public String getDisplayName() {
         return Messages.deploy_submitted();
-    }
-
-    @Override
-    public String getUrlName() {
-        return null;
     }
 }

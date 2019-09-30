@@ -3,6 +3,7 @@ package org.jenkinsci.plugins.workflow.support.steps.deploy;
 import com.cloudbees.plugins.credentials.CredentialsParameterValue;
 import com.cloudbees.plugins.credentials.builds.CredentialsParameterBinder;
 import com.google.common.collect.Sets;
+import com.google.gson.Gson;
 import com.google.inject.Inject;
 import hudson.FilePath;
 import hudson.Util;
@@ -25,13 +26,11 @@ import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
-import org.jenkinsci.plugins.workflow.actions.WarningAction;
 import org.jenkinsci.plugins.workflow.graph.FlowNode;
 import org.jenkinsci.plugins.workflow.steps.FlowInterruptedException;
 import org.jenkinsci.plugins.workflow.steps.StepContextParameter;
 import org.jenkinsci.plugins.workflow.support.actions.PauseAction;
-import org.jenkinsci.plugins.workflow.support.steps.input.InputAction;
-import org.jenkinsci.plugins.workflow.support.steps.input.InputStep;
+import org.jenkinsci.plugins.workflow.support.steps.input.ApproverAction;
 import org.jenkinsci.plugins.workflow.support.steps.input.InputStepExecution;
 import org.jenkinsci.plugins.workflow.support.steps.input.POSTHyperlinkNote;
 import org.kohsuke.stapler.HttpResponse;
@@ -86,18 +85,17 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
 
     @Override
     public boolean start() throws Exception {
+        Gson gson = new Gson();
+        log("input id is " + (getInput() == null ? "input is null" : getInput().getId()));
+        log("input message is " + (getInput() == null ? "input is null" : getInput().getMessage()));
+
         // record this input
         getPauseAction().add(this);
-
-        DeployAction deployAction = new DeployAction();
-        run.addAction(deployAction);
-        deployAction.add(this);
 
         // This node causes the flow to pause at this point so we mark it as a "Pause Node".
         node.addAction(new PauseAction("Input"));
 
-//        String baseUrl = '/' + run.getUrl() + getPauseAction().getUrlName() + '/';
-        String baseUrl = '/' + run.getUrl() + "deploy/";
+        String baseUrl = '/' + run.getUrl() + getPauseAction().getUrlName() + '/';
         //JENKINS-40594 submitterParameter does not work without at least one actual parameter
         if (input.getParameters().isEmpty() && input.getSubmitterParameter() == null) {
             String thisUrl = baseUrl + Util.rawEncode(getId()) + '/';
@@ -132,7 +130,7 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
     }
 
     @Override
-    public InputStep getInput() {
+    public DeployStep getInput() {
         return input;
     }
 
@@ -152,23 +150,22 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
     /**
      * Gets the {@link DeployAction} that this step should be attached to.
      */
-//    private DeployAction getPauseAction() {
-//        DeployAction a = run.getAction(DeployAction.class);
-//        if (a==null)
-//            run.addAction(a=new DeployAction());
-//        return a;
-//    }
-    private InputAction getPauseAction() {
-        InputAction a = run.getAction(InputAction.class);
+    private DeployAction getPauseAction() {
+        DeployAction a = run.getAction(DeployAction.class);
         if (a==null)
-            run.addAction(a=new InputAction());
+            run.addAction(a=new DeployAction());
         return a;
     }
+//    private InputAction getPauseAction() {
+//        InputAction a = run.getAction(InputAction.class);
+//        if (a==null)
+//            run.addAction(a=new InputAction());
+//        return a;
+//    }
 
     @Override
     public String getDisplayName() {
-//        String message = getInput().getMessage();
-        String message = this.input.getMessage();
+        String message = getInput().getMessage();
         if (message.length()<32)    return message;
         return message.substring(0,32)+"...";
     }
@@ -177,27 +174,31 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
     /**
      * Called from the form via browser to submit/abort this input step.
      */
-//    @RequirePOST
-//    public HttpResponse doSubmit(StaplerRequest request) throws IOException, ServletException, InterruptedException {
-//        if (request.getParameter("proceed")!=null) {
-//            doProceed(request);
-//        } else {
-//            doAbort();
-//        }
-//
-//        // go back to the Run console page
-//        return HttpResponses.redirectTo("../../console");
-//    }
+    @RequirePOST
+    @Override
+    public HttpResponse doSubmit(StaplerRequest request) throws IOException, ServletException, InterruptedException {
+        LOGGER.log(Level.WARNING, "deploy插件 doSubmit");
+        if (request.getParameter("proceed")!=null) {
+            doProceed(request);
+        } else {
+            doAbort();
+        }
+
+        // go back to the Run console page
+        return HttpResponses.redirectTo("../../console");
+    }
 
     /**
      * REST endpoint to submit the input.
      */
-//    @RequirePOST
-//    public HttpResponse doProceed(StaplerRequest request) throws IOException, ServletException, InterruptedException {
-//        preSubmissionCheck();
-//        Map<String,Object> v = parseValue(request);
-//        return proceed(v);
-//    }
+    @RequirePOST
+    @Override
+    public HttpResponse doProceed(StaplerRequest request) throws IOException, ServletException, InterruptedException {
+        LOGGER.log(Level.WARNING, "deploy插件 doProceed");
+        preSubmissionCheck();
+        Map<String,Object> v = parseValue(request);
+        return proceed(v);
+    }
 
     /**
      * Processes the acceptance (approval) request.
@@ -208,10 +209,9 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
      */
     @Override
     public HttpResponse proceed(@CheckForNull Map<String,Object> params) {
+        LOGGER.log(Level.WARNING, "deploy插件 proceed");
         User user = User.current();
-        if (params != null && params.get("input") != null && StringUtils.isNotEmpty(params.get("input").toString())) {
-            node.addAction(new WarningAction(Result.NOT_BUILT));
-
+        if (params != null && params.get("deploy") != null && StringUtils.isNotEmpty(params.get("deploy").toString())) {
             log("Deployed by " + hudson.console.ModelHyperlinkNote.encodeTo(user));
             LOGGER.log(Level.INFO, "Deployed by " + hudson.console.ModelHyperlinkNote.encodeTo(user));
             String tenantId = params.get("tenantId") == null ? "" : params.get("tenantId").toString();
@@ -339,17 +339,18 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
     /**
      * Check if the current user can submit the input.
      */
-//    public void preSubmissionCheck() {
-//        if (isSettled())
-//            throw new Failure("This input has been already given");
-//        if (!canSubmit()) {
-//            if (input.getSubmitter() != null) {
-//                throw new Failure("You need to be " + input.getSubmitter() + " to submit this.");
-//            } else {
-//                throw new Failure("You need to have Job/Build permissions to submit this.");
-//            }
-//        }
-//    }
+    @Override
+    public void preSubmissionCheck() {
+        if (isSettled())
+            throw new Failure("This input has been already given");
+        if (!canSubmit()) {
+            if (input.getSubmitter() != null) {
+                throw new Failure("You need to be " + input.getSubmitter() + " to submit this.");
+            } else {
+                throw new Failure("You need to have Job/Build permissions to submit this.");
+            }
+        }
+    }
 
     private void postSettlement() {
         try {

@@ -1,12 +1,21 @@
 package org.jenkinsci.plugins.workflow.support.steps.deploy;
 
+import com.google.common.collect.Sets;
 import hudson.Extension;
+import hudson.Util;
+import hudson.model.ParameterDefinition;
+import jenkins.model.Jenkins;
+import org.acegisecurity.Authentication;
+import org.acegisecurity.GrantedAuthority;
 import org.jenkinsci.plugins.workflow.steps.Step;
 import org.jenkinsci.plugins.workflow.support.steps.input.InputStep;
 import org.kohsuke.stapler.DataBoundConstructor;
+import org.kohsuke.stapler.DataBoundSetter;
 
-import java.lang.reflect.Field;
-import java.lang.reflect.Modifier;
+import java.util.Collections;
+import java.util.List;
+import java.util.Set;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
@@ -17,147 +26,147 @@ import java.util.logging.Logger;
 public class DeployStep extends InputStep {
     private static final Logger LOGGER = Logger.getLogger(DeployStep.class.getName());
 
-//    private final String message;
-//
-//    /**
-//     * Optional ID that uniquely identifies this input from all others.
-//     */
-//    private String id;
-//
-//    /**
-//     * Optional user/group name who can approve this.
-//     */
-//    private String submitter;
-//
-//    /**
-//     * Optional parameter name to stored the user who responded to the input.
-//     */
-//    private String submitterParameter;
-//
-//
-//    /**
-//     * Either a single {@link ParameterDefinition} or a list of them.
-//     */
-//    private List<ParameterDefinition> parameters = Collections.emptyList();
-//
-//    /**
-//     * Caption of the OK button.
-//     */
-//    private String ok;
+    private final String message;
+    private String id;
+    private String submitter;
+    private String submitterParameter;
+    private List<ParameterDefinition> parameters = Collections.emptyList();
+    private String ok;
 
     @DataBoundConstructor
     public DeployStep(String message) {
         super(message);
-//        if (message==null)
-//            message = "Pipeline has paused and needs your input before proceeding";
-//        this.message = message;
-    }
-
-//    @DataBoundSetter
-//    public void setId(String id) {
-//        this.id = capitalize(Util.fixEmpty(id));
-//    }
-//
-//    public String getId() {
-//        if (id==null)
-//            id = capitalize(Util.getDigestOf(message));
-//        return id;
-//    }
-//
-//    public String getSubmitter() {
-//        return submitter;
-//    }
-//
-//    @DataBoundSetter public void setSubmitter(String submitter) {
-//        this.submitter = Util.fixEmptyAndTrim(submitter);
-//    }
-//
-//    public String getSubmitterParameter() { return submitterParameter; }
-//
-//    @DataBoundSetter public void setSubmitterParameter(String submitterParameter) {
-//        this.submitterParameter = Util.fixEmptyAndTrim(submitterParameter);
-//    }
-//
-//    private String capitalize(String id) {
-//        if (id==null)
-//            return null;
-//        if (id.length()==0)
-//            throw new IllegalArgumentException();
-//        // a-z as the first char is reserved for DeployAction
-//        char ch = id.charAt(0);
-//        if ('a'<=ch && ch<='z')
-//            id = ((char)(ch-'a'+'A')) + id.substring(1);
-//        return id;
-//    }
-//
-//    /**
-//     * Caption of the OK button.
-//     */
-//    public String getOk() {
-//        return ok!=null ? ok : Messages.proceed();
-//    }
-//
-//    @DataBoundSetter public void setOk(String ok) {
-//        this.ok = Util.fixEmptyAndTrim(ok);
-//    }
-//
-//    public List<ParameterDefinition> getParameters() {
-//        return parameters;
-//    }
-//
-//    @DataBoundSetter public void setParameters(List<ParameterDefinition> parameters) {
-//        this.parameters = parameters;
-//    }
-//
-//    public String getMessage() {
-//        return message;
-//    }
-//
-//    @Deprecated
-//    public boolean canSubmit() {
-//        Authentication a = Jenkins.getAuthentication();
-//        return canSettle(a);
-//    }
-//
-//    /**
-//     * Checks if the given user can settle this input.
-//     */
-//    @Deprecated
-//    public boolean canSettle(Authentication a) {
-//        if (submitter==null)
-//            return true;
-//        final Set<String> submitters = Sets.newHashSet(submitter.split(","));
-//        if (submitters.contains(a.getName()))
-//            return true;
-//        for (GrantedAuthority ga : a.getAuthorities()) {
-//            if (submitters.contains(ga.getAuthority()))
-//                return true;
-//        }
-//        return false;
-//    }
-//
-//
-    @Override
-    public DescriptorImpl getDescriptor() {
-//        return new DescriptorImpl();
-        DescriptorImpl descriptor = (DescriptorImpl) super.getDescriptor();
-
-        Field field = null;
-        try {
-            field = descriptor.getClass().getDeclaredField("executionType");
-            field.setAccessible(true);
-            field.set(descriptor,DeployStepExecution.class);
-        } catch (Exception e) {
-            LOGGER.warning(e.getMessage());
+        if(message == null) {
+            message = "Pipeline has paused and needs your input before proceeding";
         }
 
-        return descriptor;
+        this.message = message;
+    }
+
+    @DataBoundSetter
+    @Override
+    public void setId(String id) {
+        this.id = this.capitalize(Util.fixEmpty(id));
+    }
+
+    @Override
+    public String getId() {
+        if(this.id == null) {
+            this.id = this.capitalize(Util.getDigestOf(this.message));
+        }
+
+        return this.id;
+    }
+
+    @Override
+    public String getSubmitter() {
+        return this.submitter;
+    }
+
+    @DataBoundSetter
+    @Override
+    public void setSubmitter(String submitter) {
+        this.submitter = Util.fixEmptyAndTrim(submitter);
+    }
+
+    @Override
+    public String getSubmitterParameter() {
+        return this.submitterParameter;
+    }
+
+    @DataBoundSetter
+    @Override
+    public void setSubmitterParameter(String submitterParameter) {
+        this.submitterParameter = Util.fixEmptyAndTrim(submitterParameter);
+    }
+
+    private String capitalize(String id) {
+        if(id == null) {
+            return null;
+        } else if(id.length() == 0) {
+            throw new IllegalArgumentException();
+        } else {
+            char ch = id.charAt(0);
+            if(97 <= ch && ch <= 122) {
+                id = (char)(ch - 97 + 65) + id.substring(1);
+            }
+
+            return id;
+        }
+    }
+
+    @Override
+    public String getOk() {
+        return this.ok != null?this.ok: org.jenkinsci.plugins.workflow.support.steps.deploy.Messages.proceed();
+    }
+
+    @DataBoundSetter
+    @Override
+    public void setOk(String ok) {
+        this.ok = Util.fixEmptyAndTrim(ok);
+    }
+
+    @Override
+    public List<ParameterDefinition> getParameters() {
+        return this.parameters;
+    }
+
+    @DataBoundSetter
+    @Override
+    public void setParameters(List<ParameterDefinition> parameters) {
+        this.parameters = parameters;
+    }
+
+    @Override
+    public String getMessage() {
+        return this.message;
+    }
+
+    /** @deprecated */
+    @Deprecated
+    public boolean canSubmit() {
+        Authentication a = Jenkins.getAuthentication();
+        return this.canSettle(a);
+    }
+
+    /** @deprecated */
+    @Deprecated
+    public boolean canSettle(Authentication a) {
+        if(this.submitter == null) {
+            return true;
+        } else {
+            Set<String> submitters = Sets.newHashSet(this.submitter.split(","));
+            if(submitters.contains(a.getName())) {
+                return true;
+            } else {
+                GrantedAuthority[] var3 = a.getAuthorities();
+                int var4 = var3.length;
+
+                for(int var5 = 0; var5 < var4; ++var5) {
+                    GrantedAuthority ga = var3[var5];
+                    if(submitters.contains(ga.getAuthority())) {
+                        return true;
+                    }
+                }
+
+                return false;
+            }
+        }
+    }
+
+
+    @Override
+    public DescriptorImpl getDescriptor() {
+        LOGGER.log(Level.WARNING, "getDescriptor");
+        return new DescriptorImpl();
     }
 
     @Extension
     public static class DescriptorImpl extends InputStep.DescriptorImpl {
 
         public DescriptorImpl() {
+            super(DeployStepExecution.class);
+            LOGGER.log(Level.WARNING, "DescriptorImpl construct");
         }
 
         @Override
@@ -169,12 +178,5 @@ public class DeployStep extends InputStep {
         public String getDisplayName() {
             return Messages.wait_for_interactive_deploy();
         }
-
-    }
-    private void updateFinalModifiers(Field field) throws NoSuchFieldException, IllegalAccessException {
-        field.setAccessible(true);
-        Field modifiersField = Field.class.getDeclaredField("executionType");
-        modifiersField.setAccessible(true);
-        modifiersField.setInt(field, field.getModifiers() & ~Modifier.FINAL);
     }
 }
