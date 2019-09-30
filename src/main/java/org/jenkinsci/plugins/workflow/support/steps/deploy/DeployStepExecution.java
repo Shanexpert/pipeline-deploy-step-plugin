@@ -114,7 +114,7 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
             listener.getLogger().println(HyperlinkNote.encodeTo(baseUrl, "Deploy requested"));
         }
         // callback input start event
-        postNoticeCallback(NOTICE_READY);
+        postNoticeCallback(NOTICE_READY, null, null);
         return false;
     }
 
@@ -281,7 +281,7 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
         log("Deploy succeed.");
 
         // callback input success event
-        postNoticeCallback(NOTICE_SUCCESS);
+        postNoticeCallback(NOTICE_SUCCESS, null, null);
 
         String approverId = null;
         if (user != null){
@@ -331,7 +331,7 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
     @Override
     public HttpResponse doAbort() {
         // callback input abort event
-        postNoticeCallback(NOTICE_ABORT);
+        postNoticeCallback(NOTICE_ABORT, null, null);
 
         preAbortCheck();
 
@@ -514,7 +514,7 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
      * @param type ready、success、abort
      * @return
      */
-    public Boolean postNoticeCallback(String type)  {
+    public Boolean postNoticeCallback(String type, String userId, String userName)  {
         // callback input start event
         String noticeCallback = GlobalConfiguration.all().get(DeployGlobalConfiguration.class).getNoticeCallback();
         try {
@@ -537,7 +537,7 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
         jsonObject.put("pipelineName", run.getParent().getName());
         jsonObject.put("pipelineFullName", run.getParent().getFullName());
         LOGGER.log(Level.INFO, "Post body is " + jsonObject.toString());
-        return post(noticeCallback, jsonObject, null, null);
+        return post(noticeCallback, jsonObject, userId, userName);
     }
 
     /**
@@ -554,9 +554,14 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
             CloseableHttpClient httpClient = connectionFactory.getHttpClient();
             HttpPost httpPost = new HttpPost(url);
             httpPost.setHeader("Content-Type","application/json;charset=utf-8");
+            JSONObject leoUserJsonObject = new JSONObject();
             if (!StringUtils.isEmpty(userId)) {
-                httpPost.setHeader("LEO-USER","{\"userId\":\"" + userId + "\"}");
+                leoUserJsonObject.put("userId", userId);
             }
+            if (!StringUtils.isEmpty(userName)) {
+                leoUserJsonObject.put("userName", userName);
+            }
+            httpPost.setHeader("LEO-USER", leoUserJsonObject.toString());
             StringEntity postingString = new StringEntity(jsonObject.toString(),"utf-8");
             httpPost.setEntity(postingString);
             response = httpClient.execute(httpPost);
