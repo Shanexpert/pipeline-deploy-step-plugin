@@ -19,6 +19,7 @@ import jenkins.model.Jenkins;
 import jenkins.util.Timer;
 import net.sf.json.JSONArray;
 import net.sf.json.JSONObject;
+import org.abego.treelayout.internal.util.java.lang.string.StringUtil;
 import org.acegisecurity.Authentication;
 import org.acegisecurity.GrantedAuthority;
 import org.apache.commons.lang.StringUtils;
@@ -31,11 +32,13 @@ import org.jenkinsci.plugins.workflow.steps.FlowInterruptedException;
 import org.jenkinsci.plugins.workflow.steps.StepContextParameter;
 import org.jenkinsci.plugins.workflow.support.actions.PauseAction;
 import org.jenkinsci.plugins.workflow.support.steps.input.ApproverAction;
+import org.jenkinsci.plugins.workflow.support.steps.input.InputAction;
 import org.jenkinsci.plugins.workflow.support.steps.input.InputStepExecution;
 import org.jenkinsci.plugins.workflow.support.steps.input.POSTHyperlinkNote;
 import org.kohsuke.stapler.HttpResponse;
 import org.kohsuke.stapler.StaplerRequest;
 import org.kohsuke.stapler.interceptor.RequirePOST;
+import org.springframework.util.CollectionUtils;
 
 import javax.annotation.CheckForNull;
 import javax.servlet.ServletException;
@@ -92,8 +95,11 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
         // record this input
         getPauseAction().add(this);
 
+
         // This node causes the flow to pause at this point so we mark it as a "Pause Node".
         node.addAction(new PauseAction("Input"));
+
+        System.out.println(run.getAction(InputAction.class));
 
         String baseUrl = '/' + run.getUrl() + getPauseAction().getUrlName() + '/';
         //JENKINS-40594 submitterParameter does not work without at least one actual parameter
@@ -217,13 +223,29 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
             String tenantId = params.get("tenantId") == null ? "" : params.get("tenantId").toString();
             String projectId = params.get("projectId") == null ? "" : params.get("projectId").toString();
             String appId = params.get("appId") == null ? "" : params.get("appId").toString();
-            String tplId = params.get("tplId") == null ? "" : params.get("tplId").toString();
-            String env = params.get("env") == null ? "" : params.get("env").toString();
+//            String tplId = params.get("tplId") == null ? "" : params.get("tplId").toString();
+//            String env = params.get("env") == null ? "" : params.get("env").toString();
+            String env = "";
+            String tplId = "";
+            if (input != null && !CollectionUtils.isEmpty(input.getParameters())) {
+                for (ParameterDefinition parameterDefinition : input.getParameters()) {
+                    if ("env".equals(parameterDefinition.getName())) {
+                        env = parameterDefinition.getDefaultParameterValue().getValue() == null ? ""
+                                : parameterDefinition.getDefaultParameterValue().getValue().toString();
+                    } else if ("tplId".equals(parameterDefinition.getName())) {
+                        tplId = parameterDefinition.getDefaultParameterValue().getValue() == null ? ""
+                                : parameterDefinition.getDefaultParameterValue().getValue().toString();
+                    }
+                }
+            }
+            if (StringUtils.isEmpty(tplId)) {
+                tplId = "0";
+            }
             String userId = params.get("userId") == null ? "" : params.get("userId").toString();
             if (StringUtils.isEmpty(tenantId) || StringUtils.isEmpty(projectId) || StringUtils.isEmpty(appId)
-                    || StringUtils.isEmpty(tplId)
                     || StringUtils.isEmpty(env)
                     || StringUtils.isEmpty(userId)) {
+                log("Params error, curl deploy url error.");
                 preAbortCheck();
                 FlowInterruptedException e = new FlowInterruptedException(Result.ABORTED, new ParamErrorRejection("Parmas error"));
                 outcome = new Outcome(null,e, null);
@@ -240,7 +262,7 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
             jsonObject.put("nodeId", node.getId());
             jsonObject.put("pipelineId", run.getParent().getName());
             jsonObject.put("devopsId", run.getParent().getParent() == null ? "" : run.getParent().getParent().getFullName());
-            LOGGER.log(Level.INFO, "Deploy body is " + jsonObject.toString());
+            LOGGER.log(Level.INFO, "Url:" + url + ",Deploy body is " + jsonObject.toString());
             Boolean result = post(url, jsonObject, userId);
             if (result) {
                 Object v;

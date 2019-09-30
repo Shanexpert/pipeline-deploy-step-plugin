@@ -24,20 +24,41 @@
 
 package org.jenkinsci.plugins.workflow.support.steps.deploy;
 
+import com.gargoylesoftware.htmlunit.ElementNotFoundException;
+import com.gargoylesoftware.htmlunit.html.HtmlAnchor;
+import com.gargoylesoftware.htmlunit.html.HtmlPage;
+import com.google.common.base.Predicate;
+import edu.umd.cs.findbugs.annotations.Nullable;
+import hudson.model.BooleanParameterDefinition;
+import hudson.model.queue.QueueTaskFuture;
+import org.apache.commons.lang.StringUtils;
+import org.jenkinsci.plugins.workflow.cps.CpsFlowDefinition;
+import org.jenkinsci.plugins.workflow.cps.CpsFlowExecution;
+import org.jenkinsci.plugins.workflow.graph.FlowNode;
+import org.jenkinsci.plugins.workflow.graphanalysis.DepthFirstScanner;
+import org.jenkinsci.plugins.workflow.job.WorkflowJob;
+import org.jenkinsci.plugins.workflow.job.WorkflowRun;
+import org.jenkinsci.plugins.workflow.support.steps.input.ApproverAction;
 import org.junit.Assert;
+import org.junit.ClassRule;
+import org.junit.Rule;
+import org.junit.Test;
+import org.jvnet.hudson.test.BuildWatcher;
+import org.jvnet.hudson.test.JenkinsRule;
+
+import java.util.Arrays;
+import java.util.Map;
 
 /**
  * @author Kohsuke Kawaguchi
  */
 public class DeployStepTest extends Assert {
-    /*@Rule public JenkinsRule j = new JenkinsRule();
+    @Rule
+    public JenkinsRule j = new JenkinsRule();
 
     @ClassRule
     public static BuildWatcher buildWatcher = new BuildWatcher();
 
-    *//**
-     * Try out a parameter.
-     *//*
     @Test
     public void parameter() throws Exception {
 
@@ -48,7 +69,7 @@ public class DeployStepTest extends Assert {
         WorkflowJob foo = j.jenkins.createProject(WorkflowJob.class, "foo");
         foo.setDefinition(new CpsFlowDefinition(StringUtils.join(Arrays.asList(
                 "echo('before');",
-                "def x = input message:'Do you want chocolate?', id:'Icecream', ok: 'Purchase icecream', parameters: [[$class: 'BooleanParameterDefinition', name: 'chocolate', defaultValue: false, description: 'Favorite icecream flavor']], submitter:'alice';",
+                "def x = deploy message:'Do you want chocolate?', id:'Icecream', ok: 'Purchase icecream', parameters: [[$class: 'BooleanParameterDefinition', name: 'chocolate', defaultValue: false, description: 'Favorite icecream flavor']], submitter:'alice';",
                 "echo(\"after: ${x}\");"),"\n"),true));
 
 
@@ -120,7 +141,7 @@ public class DeployStepTest extends Assert {
         assertEquals(false, submittedParams.get("chocolate"));
     }
 
-    @Test
+    /*@Test
     @Issue("JENKINS-26363")
     public void test_cancel_run_by_input() throws Exception {
         JenkinsRule.WebClient webClient = j.createWebClient();
@@ -418,6 +439,5 @@ public class DeployStepTest extends Assert {
 
     private static String stringCredentialsInput(String id, String name) {
         return "input id: '" + id + "', message: '', parameters: [credentials(credentialType: 'org.jenkinsci.plugins.plaincredentials.impl.StringCredentialsImpl', defaultValue: '', description: '', name: '" + name + "', required: true)]\n";
-    }
-*/
+    }*/
 }
