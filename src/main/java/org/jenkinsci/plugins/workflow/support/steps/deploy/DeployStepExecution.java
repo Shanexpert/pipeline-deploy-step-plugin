@@ -124,7 +124,7 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
         Timer.get().submit(new Runnable() {
             @Override public void run() {
                 try (ACLContext context = ACL.as(ACL.SYSTEM)) {
-                    doAbort();
+                    doAbort(null);
                 }
             }
         });
@@ -187,7 +187,7 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
         if (request.getParameter("proceed")!=null) {
             doProceed(request);
         } else {
-            doAbort();
+            doAbort(request);
         }
 
         // go back to the Run console page
@@ -275,13 +275,19 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
                 outcome = new Outcome(v, null, true);
                 return HttpResponses.ok();
             } else {
-                return doAbort();
+                return doAbort(null);
             }
         }
         log("Deploy succeed.");
 
+        String userId = null;
+        String userName = null;
+        if (outcome != null && outcome.getNormal() != null) {
+            userId = ((Map<String, Object>)outcome.getNormal()).get("userId") == null ? null : ((Map<String, Object>)outcome.getNormal()).get("userId").toString();
+            userName = ((Map<String, Object>)outcome.getNormal()).get("userName") == null ? null : ((Map<String, Object>)outcome.getNormal()).get("userName").toString();
+        }
         // callback input success event
-        postNoticeCallback(NOTICE_SUCCESS, null, null);
+        postNoticeCallback(NOTICE_SUCCESS, userId, userName);
 
         String approverId = null;
         if (user != null){
@@ -302,36 +308,50 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
         return HttpResponses.ok();
     }
 
-//    @Deprecated
-//    @SuppressWarnings("unchecked")
-//    public HttpResponse proceed(Object v) throws IOException, InterruptedException {
-//        if (v instanceof Map) {
-//            return proceed(new HashMap<String,Object>((Map) v));
-//        } else if (v == null) {
-//            return proceed(null);
-//        } else {
-//            return proceed(Collections.singletonMap("parameter", v));
-//        }
-//    }
+    @Deprecated
+    @SuppressWarnings("unchecked")
+    public HttpResponse proceed(Object v) {
+        if (v instanceof Map) {
+            return proceed(new HashMap<String,Object>((Map) v));
+        } else if (v == null) {
+            return proceed(null);
+        } else {
+            return proceed(Collections.singletonMap("parameter", v));
+        }
+    }
 
     /**
      * Used from the Proceed hyperlink when no parameters are defined.
      */
-//    @RequirePOST
-//    public HttpResponse doProceedEmpty() throws IOException, InterruptedException {
-//        preSubmissionCheck();
-//
-//        return proceed(null);
-//    }
+    @RequirePOST
+    @Override
+    public HttpResponse doProceedEmpty() {
+        preSubmissionCheck();
+
+        return proceed(null);
+    }
 
     /**
      * REST endpoint to abort the workflow.
      */
     @RequirePOST
-    @Override
-    public HttpResponse doAbort() {
+    public HttpResponse doAbort(StaplerRequest request) {
+        preAbortCheck();
+        Map<String,Object> params = null;
+        try {
+            params = parseValue(request);
+        } catch (Exception e) {
+            LOGGER.log(Level.WARNING, "doAbort exception, ", e);
+        }
+
+        String userId = null;
+        String userName = null;
+        if (params != null) {
+            userId = params.get("userId") == null ? null : params.get("userId").toString();
+            userName = params.get("userName") == null ? null : params.get("userName").toString();
+        }
         // callback input abort event
-        postNoticeCallback(NOTICE_ABORT, null, null);
+        postNoticeCallback(NOTICE_ABORT, userId, userName);
 
         preAbortCheck();
 
