@@ -14,13 +14,28 @@ import java.lang.reflect.InvocationTargetException;
 public final class Outcome implements Serializable {
     private final Object normal;
     private final Throwable abnormal;
+    /**
+     * is deploy
+     */
     private final Boolean deployed;
 
-    public Outcome(Object normal, Throwable abnormal, Boolean deployed) {
-        assert normal==null || abnormal==null || deployed==null;
+    /**
+     * is submit
+     */
+    private final Boolean submitted;
+
+    /**
+     * is abort
+     */
+    private final Boolean aborted;
+
+    public Outcome(Object normal, Throwable abnormal, Boolean deployed, Boolean submitted, Boolean aborted) {
+        assert normal==null || abnormal==null;
         this.normal = normal;
         this.abnormal = abnormal;
         this.deployed = deployed;
+        this.submitted = submitted;
+        this.aborted = aborted;
     }
 
     /**
@@ -57,13 +72,21 @@ public final class Outcome implements Serializable {
     }
 
     public boolean isDeployed() {
-        return deployed;
+        return deployed!=null && deployed;
+    }
+
+    public boolean isSubmitted() {
+        return submitted != null && submitted;
+    }
+
+    public boolean isAborted() {
+        return aborted != null && aborted;
     }
 
     @Override
     public String toString() {
-        if (abnormal!=null)     return "abnormal["+abnormal+"],deployed["+deployed+']';
-        else                    return "normal["+normal+"],deployed["+deployed+']';
+        if (abnormal!=null)     return "abnormal["+abnormal+"],deployed["+deployed+"],submitted["+submitted+"],aborted["+aborted+"]";
+        else                    return "normal["+normal+"],deployed["+deployed+"],submitted["+submitted+"],aborted["+aborted+"]";
     }
 
     private static final long serialVersionUID = 1L;
