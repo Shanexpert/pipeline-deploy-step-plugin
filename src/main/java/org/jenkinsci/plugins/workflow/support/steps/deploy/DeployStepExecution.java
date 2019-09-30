@@ -223,6 +223,8 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
             String tenantId = params.get("tenantId") == null ? "" : params.get("tenantId").toString();
             String projectId = params.get("projectId") == null ? "" : params.get("projectId").toString();
             String appId = params.get("appId") == null ? "" : params.get("appId").toString();
+            String userId = params.get("userId") == null ? "" : params.get("userId").toString();
+            String userName = params.get("userName") == null ? "" : params.get("userName").toString();
 //            String tplId = params.get("tplId") == null ? "" : params.get("tplId").toString();
 //            String env = params.get("env") == null ? "" : params.get("env").toString();
             String env = "";
@@ -241,7 +243,6 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
             if (StringUtils.isEmpty(tplId)) {
                 tplId = "0";
             }
-            String userId = params.get("userId") == null ? "" : params.get("userId").toString();
             if (StringUtils.isEmpty(tenantId) || StringUtils.isEmpty(projectId) || StringUtils.isEmpty(appId)
                     || StringUtils.isEmpty(env)
                     || StringUtils.isEmpty(userId)) {
@@ -263,7 +264,7 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
             jsonObject.put("pipelineId", run.getParent().getName());
             jsonObject.put("devopsId", run.getParent().getParent() == null ? "" : run.getParent().getParent().getFullName());
             LOGGER.log(Level.INFO, "Url:" + url + ",Deploy body is " + jsonObject.toString());
-            Boolean result = post(url, jsonObject, userId);
+            Boolean result = post(url, jsonObject, userId, userName);
             if (result) {
                 Object v;
                 if (params != null && params.size() == 1) {
@@ -536,7 +537,7 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
         jsonObject.put("pipelineName", run.getParent().getName());
         jsonObject.put("pipelineFullName", run.getParent().getFullName());
         LOGGER.log(Level.INFO, "Post body is " + jsonObject.toString());
-        return post(noticeCallback, jsonObject, null);
+        return post(noticeCallback, jsonObject, null, null);
     }
 
     /**
@@ -546,7 +547,7 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
      * @param userId leo userId
      * @return
      */
-    public Boolean post(String url, JSONObject jsonObject, String userId) {
+    public Boolean post(String url, JSONObject jsonObject, String userId, String userName) {
         CloseableHttpResponse response = null;
         try {
             // 从连接池中获得HttpClient
