@@ -275,7 +275,21 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
                 outcome = new Outcome(v, null, true);
                 return HttpResponses.ok();
             } else {
-                return doAbort(null);
+                log("Deploy error," + jsonObject.toString());
+                // callback deploy abort event
+                postNoticeCallback(NOTICE_ABORT, userId, userName);
+
+                FlowInterruptedException e = new FlowInterruptedException(Result.ABORTED, new Rejection(User.current()));
+                if (outcome == null) {
+                    outcome = new Outcome(null, e, null, null, true);
+                } else {
+                    outcome = new Outcome(null,e, outcome.isDeployed(), outcome.isSubmitted(), true);
+                }
+                postSettlement();
+                getContext().onFailure(e);
+
+                // TODO: record this decision to FlowNode
+                return HttpResponses.ok();
             }
         }
         log("Deploy succeed.");
