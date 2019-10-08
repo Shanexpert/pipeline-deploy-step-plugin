@@ -92,6 +92,7 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
         log("input id is " + (getInput() == null ? "input is null" : getInput().getId()));
         log("input message is " + (getInput() == null ? "input is null" : getInput().getMessage()));
 
+//        this.getId()
         // record this input
         getPauseAction().add(this);
 
@@ -203,6 +204,14 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
         LOGGER.log(Level.WARNING, "deploy插件 doProceed");
         preSubmissionCheck();
         Map<String,Object> v = parseValue(request);
+        if (v != null && v.get("deploy") != null && StringUtils.isNotEmpty(v.get("deploy").toString())) {
+            if (outcome != null)
+                throw new Failure("This deploy is submitted or is deployed");
+        } else if (outcome == null){
+            throw new Failure("This deploy is not submitted, outcome is null");
+        } else if (!outcome.isSubmitted()) {
+            throw new Failure("This deploy is not submitted");
+        }
         return proceed(v);
     }
 
@@ -249,7 +258,7 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
                 log("Params error, curl deploy url error.");
                 preAbortCheck();
                 FlowInterruptedException e = new FlowInterruptedException(Result.ABORTED, new ParamErrorRejection("Parmas error"));
-                outcome = new Outcome(null,e, null);
+                outcome = new Outcome(null,e, null, true, null);
                 postSettlement();
                 getContext().onFailure(e);
                 return HttpResponses.ok();
@@ -272,7 +281,7 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
                 } else {
                     v = params;
                 }
-                outcome = new Outcome(v, null, true);
+                outcome = new Outcome(v, null, false, true, null);
                 return HttpResponses.ok();
             } else {
                 log("Deploy error," + jsonObject.toString());
@@ -310,15 +319,9 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
             listener.getLogger().println("Deploy succeed by " + hudson.console.ModelHyperlinkNote.encodeTo(user));
         }
         node.addAction(new DeploySubmittedAction(approverId, params));
-//        Object v;
-//        if (params != null && params.size() == 1) {
-//            v = params.values().iterator().next();
-//        } else {
-//            v = params;
-//        }
-//        outcome = new Outcome(v, null, true);
+        outcome = new Outcome(outcome.getNormal(), null, true, true, true);
         postSettlement();
-        getContext().onSuccess(outcome == null ? null : outcome.getNormal());
+        getContext().onSuccess(outcome.getNormal());
         return HttpResponses.ok();
     }
 
@@ -370,7 +373,11 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
         preAbortCheck();
 
         FlowInterruptedException e = new FlowInterruptedException(Result.ABORTED, new Rejection(User.current()));
-        outcome = new Outcome(null,e, null);
+        if (outcome == null) {
+            outcome = new Outcome(null, e, null, null, true);
+        } else {
+            outcome = new Outcome(null,e, outcome.isDeployed(), outcome.isSubmitted(), true);
+        }
         postSettlement();
         getContext().onFailure(e);
 
@@ -382,8 +389,8 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
      * Check if the current user can abort/cancel the run from the input.
      */
     private void preAbortCheck() {
-        if (isSettled()) {
-            throw new Failure("This input has been already given");
+        if (outcome!=null && outcome.isAborted()) {
+            throw new Failure("This deploy has been already given");
         } if (!canCancel() && !canSubmit()) {
             if (input.getSubmitter() != null) {
                 throw new Failure("You need to be '" + input.getSubmitter() + "' (or have Job/Cancel permissions) to cancel this.");
@@ -398,8 +405,8 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
      */
     @Override
     public void preSubmissionCheck() {
-        if (isSettled())
-            throw new Failure("This input has been already given");
+        if (outcome!=null && outcome.isDeployed())
+            throw new Failure("This deploy has been already given");
         if (!canSubmit()) {
             if (input.getSubmitter() != null) {
                 throw new Failure("You need to be " + input.getSubmitter() + " to submit this.");
