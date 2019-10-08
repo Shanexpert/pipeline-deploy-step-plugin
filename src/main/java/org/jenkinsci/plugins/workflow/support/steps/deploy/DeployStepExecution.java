@@ -574,7 +574,8 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
         JSONObject jsonObject = new JSONObject();
         jsonObject.put("type", type);
         jsonObject.put("runId", run.getNumber());
-        jsonObject.put("stepId", getId());
+        jsonObject.put("stepId", node.getId());
+        jsonObject.put("inputId", getId());
         jsonObject.put("pipelineName", run.getParent().getName());
         jsonObject.put("pipelineFullName", run.getParent().getFullName());
         LOGGER.log(Level.INFO, "Post body is " + jsonObject.toString());
