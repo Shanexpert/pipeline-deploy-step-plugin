@@ -3,7 +3,6 @@ package org.jenkinsci.plugins.workflow.support.steps.deploy;
 import com.cloudbees.plugins.credentials.CredentialsParameterValue;
 import com.cloudbees.plugins.credentials.builds.CredentialsParameterBinder;
 import com.google.common.collect.Sets;
-import com.google.gson.Gson;
 import com.google.inject.Inject;
 import hudson.FilePath;
 import hudson.Util;
@@ -19,7 +18,6 @@ import jenkins.model.Jenkins;
 import jenkins.util.Timer;
 import net.sf.json.JSONArray;
 import net.sf.json.JSONObject;
-import org.abego.treelayout.internal.util.java.lang.string.StringUtil;
 import org.acegisecurity.Authentication;
 import org.acegisecurity.GrantedAuthority;
 import org.apache.commons.lang.StringUtils;
@@ -88,7 +86,6 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
 
     @Override
     public boolean start() throws Exception {
-        Gson gson = new Gson();
         log("input id is " + (getInput() == null ? "input is null" : getInput().getId()));
         log("input message is " + (getInput() == null ? "input is null" : getInput().getMessage()));
 
