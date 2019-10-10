@@ -27,10 +27,31 @@ public class DeployStep extends InputStep {
     private static final Logger LOGGER = Logger.getLogger(DeployStep.class.getName());
 
     private final String message;
+
+    /**
+     * Optional ID that uniquely identifies this input from all others.
+     */
     private String id;
+
+    /**
+     * Optional user/group name who can approve this.
+     */
     private String submitter;
+
+    /**
+     * Optional parameter name to stored the user who responded to the input.
+     */
     private String submitterParameter;
+
+
+    /**
+     * Either a single {@link ParameterDefinition} or a list of them.
+     */
     private List<ParameterDefinition> parameters = Collections.emptyList();
+
+    /**
+     * Caption of the OK button.
+     */
     private String ok;
 
     @DataBoundConstructor
@@ -132,26 +153,16 @@ public class DeployStep extends InputStep {
     /** @deprecated */
     @Deprecated
     public boolean canSettle(Authentication a) {
-        if(this.submitter == null) {
+        if (submitter==null)
             return true;
-        } else {
-            Set<String> submitters = Sets.newHashSet(this.submitter.split(","));
-            if(submitters.contains(a.getName())) {
+        final Set<String> submitters = Sets.newHashSet(submitter.split(","));
+        if (submitters.contains(a.getName()))
+            return true;
+        for (GrantedAuthority ga : a.getAuthorities()) {
+            if (submitters.contains(ga.getAuthority()))
                 return true;
-            } else {
-                GrantedAuthority[] var3 = a.getAuthorities();
-                int var4 = var3.length;
-
-                for(int var5 = 0; var5 < var4; ++var5) {
-                    GrantedAuthority ga = var3[var5];
-                    if(submitters.contains(ga.getAuthority())) {
-                        return true;
-                    }
-                }
-
-                return false;
-            }
         }
+        return false;
     }
 
 

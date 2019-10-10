@@ -1,7 +1,5 @@
 package org.jenkinsci.plugins.workflow.support.steps.deploy;
 
-import com.cloudbees.plugins.credentials.CredentialsParameterValue;
-import com.cloudbees.plugins.credentials.builds.CredentialsParameterBinder;
 import com.google.common.collect.Sets;
 import com.google.inject.Inject;
 import hudson.FilePath;
@@ -9,11 +7,8 @@ import hudson.Util;
 import hudson.console.HyperlinkNote;
 import hudson.model.*;
 import hudson.security.ACL;
-import hudson.security.ACLContext;
-import hudson.security.SecurityRealm;
 import hudson.util.HttpResponses;
 import jenkins.model.GlobalConfiguration;
-import jenkins.model.IdStrategy;
 import jenkins.model.Jenkins;
 import jenkins.util.Timer;
 import net.sf.json.JSONArray;
@@ -30,7 +25,6 @@ import org.jenkinsci.plugins.workflow.steps.FlowInterruptedException;
 import org.jenkinsci.plugins.workflow.steps.StepContextParameter;
 import org.jenkinsci.plugins.workflow.support.actions.PauseAction;
 import org.jenkinsci.plugins.workflow.support.steps.input.ApproverAction;
-import org.jenkinsci.plugins.workflow.support.steps.input.InputAction;
 import org.jenkinsci.plugins.workflow.support.steps.input.InputStepExecution;
 import org.jenkinsci.plugins.workflow.support.steps.input.POSTHyperlinkNote;
 import org.kohsuke.stapler.HttpResponse;
@@ -86,18 +80,12 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
 
     @Override
     public boolean start() throws Exception {
-        log("input id is " + (getInput() == null ? "input is null" : getInput().getId()));
-        log("input message is " + (getInput() == null ? "input is null" : getInput().getMessage()));
-
-//        this.getId()
         // record this input
         getPauseAction().add(this);
 
 
         // This node causes the flow to pause at this point so we mark it as a "Pause Node".
         node.addAction(new PauseAction("Input"));
-
-        System.out.println(run.getAction(InputAction.class));
 
         String baseUrl = '/' + run.getUrl() + getPauseAction().getUrlName() + '/';
         //JENKINS-40594 submitterParameter does not work without at least one actual parameter
@@ -121,9 +109,11 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
         // JENKINS-37154: we might be inside the VM thread, so do not do anything which might block on the VM thread
         Timer.get().submit(new Runnable() {
             @Override public void run() {
-                try (ACLContext context = ACL.as(ACL.SYSTEM)) {
-                    doAbort(null);
-                }
+                ACL.impersonate(ACL.SYSTEM, new Runnable() {
+                    @Override public void run() {
+                        doAbort(null);
+                    }
+                });
             }
         });
     }
@@ -160,12 +150,6 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
             run.addAction(a=new DeployAction());
         return a;
     }
-//    private InputAction getPauseAction() {
-//        InputAction a = run.getAction(InputAction.class);
-//        if (a==null)
-//            run.addAction(a=new InputAction());
-//        return a;
-//    }
 
     @Override
     public String getDisplayName() {
@@ -433,7 +417,7 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
     }
 
     private boolean canCancel() {
-        return !Jenkins.get().isUseSecurity() || getRun().getParent().hasPermission(Job.CANCEL);
+        return getRun().getParent().hasPermission(Job.CANCEL);
     }
 
     private boolean canSubmit() {
@@ -448,37 +432,12 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
         String submitter = input.getSubmitter();
         if (submitter==null)
             return getRun().getParent().hasPermission(Job.BUILD);
-        if (!Jenkins.get().isUseSecurity() || Jenkins.get().hasPermission(Jenkins.ADMINISTER)) {
-            return true;
-        }
         final Set<String> submitters = Sets.newHashSet(submitter.split(","));
-        final SecurityRealm securityRealm = Jenkins.get().getSecurityRealm();
-        if (isMemberOf(a.getName(), submitters, securityRealm.getUserIdStrategy()))
+        if (submitters.contains(a.getName()))
             return true;
         for (GrantedAuthority ga : a.getAuthorities()) {
-            if (isMemberOf(ga.getAuthority(), submitters, securityRealm.getGroupIdStrategy()))
+            if (submitters.contains(ga.getAuthority()))
                 return true;
-        }
-        return false;
-    }
-
-    /**
-     * Checks if the provided userId is contained in the submitters list, using {@link SecurityRealm#getUserIdStrategy()} comparison algorithm.
-     * Main goal is to respect here the case sensitivity settings of the current security realm
-     * (which default behavior is case insensitivity).
-     *
-     * @param userId the id of the user if it is matching one of the submitters using {@link IdStrategy#equals(String, String)}
-     * @param submitters the list of authorized submitters
-     * @param idStrategy the idStrategy impl to use for comparison
-     * @return true is userId was found in submitters, false if not.
-     *
-     * @see {@link jenkins.model.IdStrategy#CASE_INSENSITIVE}.
-     */
-    private boolean isMemberOf(String userId, Set<String> submitters, IdStrategy idStrategy) {
-        for (String submitter : submitters) {
-            if (idStrategy.equals(userId, StringUtils.trim(submitter))) {
-                return true;
-            }
         }
         return false;
     }
@@ -489,7 +448,6 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
     private Map<String,Object> parseValue(StaplerRequest request) throws ServletException, IOException, InterruptedException {
         Map<String, Object> mapResult = new HashMap<String, Object>();
         List<ParameterDefinition> defs = input.getParameters();
-        Set<ParameterValue> vals = new HashSet<>(defs.size());
 
         Object params = request.getSubmittedForm().get("parameter");
         if (params!=null) {
@@ -509,24 +467,15 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
                 if (v == null) {
                     continue;
                 }
-                vals.add(v);
                 mapResult.put(name, convert(name, v));
             }
         }
 
-        CredentialsParameterBinder binder = CredentialsParameterBinder.getOrCreate(run);
-        String userId = Jenkins.getAuthentication().getName();
-        for (ParameterValue val : vals) {
-            if (val instanceof CredentialsParameterValue) {
-                binder.bindCredentialsParameter(userId, (CredentialsParameterValue) val);
-            }
-        }
-        run.replaceAction(binder);
-
         // If a destination value is specified, push the submitter to it.
         String valueName = input.getSubmitterParameter();
         if (valueName != null && !valueName.isEmpty()) {
-            mapResult.put(valueName, userId);
+            Authentication a = Jenkins.getAuthentication();
+            mapResult.put(valueName, a.getName());
         }
 
         if (mapResult.isEmpty()) {

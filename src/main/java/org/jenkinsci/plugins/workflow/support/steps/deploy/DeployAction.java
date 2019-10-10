@@ -1,6 +1,5 @@
 package org.jenkinsci.plugins.workflow.support.steps.deploy;
 
-import com.google.gson.Gson;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import hudson.model.Run;
 import jenkins.model.RunAction2;
@@ -151,18 +150,6 @@ public class DeployAction extends InputAction implements RunAction2 {
     public synchronized List<InputStepExecution> getExecutions() throws InterruptedException, TimeoutException {
         LOGGER.log(Level.WARNING, "getExecutions");
         loadExecutions();
-        Gson gson = new Gson();
-        LOGGER.log(Level.WARNING, "getExecutions," + (executions== null ? "null" : ""));
-        for(DeployStepExecution execution : executions) {
-            if (execution.getInput() == null) {
-                LOGGER.log(Level.WARNING, "execution input is is null");
-            } else {
-                LOGGER.log(Level.WARNING, "execution input id is " + execution.getInput().getId());
-                LOGGER.log(Level.WARNING, "execution input instanceof DeployStep is " + (execution.getInput() instanceof DeployStep));
-                LOGGER.log(Level.WARNING, "execution input instanceof InputStep is " + (execution.getInput() instanceof InputStep));
-            }
-        }
-
         if (executions == null) {
             return Collections.emptyList();
         }
