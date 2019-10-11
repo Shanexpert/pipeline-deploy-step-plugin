@@ -62,7 +62,7 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
     @StepContextParameter private transient FlowNode node;
 
     /**
-     * Result of the input.
+     * Result of the deploy.
      */
     private Outcome outcome;
 
@@ -80,9 +80,8 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
 
     @Override
     public boolean start() throws Exception {
-        // record this input
+        // record this deploy
         getPauseAction().add(this);
-
 
         // This node causes the flow to pause at this point so we mark it as a "Pause Node".
         node.addAction(new PauseAction("Input"));
@@ -99,7 +98,7 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
             // TODO would be even cooler to embed the parameter form right in the build log (hiding it after submission)
             listener.getLogger().println(HyperlinkNote.encodeTo(baseUrl, "Deploy requested"));
         }
-        // callback input start event
+        // callback deploy start event
         postNoticeCallback(NOTICE_READY, null, null);
         return false;
     }
@@ -134,7 +133,7 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
     }
 
     /**
-     * If this input step has been decided one way or the other.
+     * If this deploy step has been decided one way or the other.
      */
     @Override
     public boolean isSettled() {
@@ -160,13 +159,12 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
 
 
     /**
-     * Called from the form via browser to submit/abort this input step.
+     * Called from the form via browser to submit/abort this deploy step.
      */
     @RequirePOST
     @Override
     public HttpResponse doSubmit(StaplerRequest request) throws IOException, ServletException, InterruptedException {
-        LOGGER.log(Level.WARNING, "deploy插件 doSubmit");
-        if (request.getParameter("proceed")!=null) {
+        if (request.getParameter("proceed")!=null && StringUtils.isNotEmpty(request.getParameter("proceed"))) {
             doProceed(request);
         } else {
             doAbort(request);
@@ -182,17 +180,8 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
     @RequirePOST
     @Override
     public HttpResponse doProceed(StaplerRequest request) throws IOException, ServletException, InterruptedException {
-        LOGGER.log(Level.WARNING, "deploy插件 doProceed");
         preSubmissionCheck();
         Map<String,Object> v = parseValue(request);
-        if (v != null && v.get("deploy") != null && StringUtils.isNotEmpty(v.get("deploy").toString())) {
-            if (outcome != null)
-                throw new Failure("This deploy is submitted or is deployed");
-        } else if (outcome == null){
-            throw new Failure("This deploy is not submitted, outcome is null");
-        } else if (!outcome.isSubmitted()) {
-            throw new Failure("This deploy is not submitted");
-        }
         return proceed(v);
     }
 
@@ -205,16 +194,25 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
      */
     @Override
     public HttpResponse proceed(@CheckForNull Map<String,Object> params) {
-        LOGGER.log(Level.WARNING, "deploy插件 proceed");
+        if (params != null && params.get("deploy") != null && StringUtils.isNotEmpty(params.get("deploy").toString())) {
+            if (outcome != null)
+                throw new Failure("This deploy is submitted or is deployed");
+        } else if (outcome == null){
+            throw new Failure("This deploy is not submitted, outcome is null");
+        } else if (!outcome.isSubmitted()) {
+            throw new Failure("This deploy is not submitted");
+        }
         User user = User.current();
         if (params != null && params.get("deploy") != null && StringUtils.isNotEmpty(params.get("deploy").toString())) {
+            node.addAction(new DeployingAction(Result.NOT_BUILT));
+
             log("Deployed by " + hudson.console.ModelHyperlinkNote.encodeTo(user));
-            LOGGER.log(Level.INFO, "Deployed by " + hudson.console.ModelHyperlinkNote.encodeTo(user));
             String tenantId = params.get("tenantId") == null ? "" : params.get("tenantId").toString();
             String projectId = params.get("projectId") == null ? "" : params.get("projectId").toString();
             String appId = params.get("appId") == null ? "" : params.get("appId").toString();
             String userId = params.get("userId") == null ? "" : params.get("userId").toString();
             String userName = params.get("userName") == null ? "" : params.get("userName").toString();
+            listener.getLogger().println("Deployed by " + userName);
 //            String tplId = params.get("tplId") == null ? "" : params.get("tplId").toString();
 //            String env = params.get("env") == null ? "" : params.get("env").toString();
             String env = "";
@@ -246,14 +244,15 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
             }
             // curl input url
             String deployUrl = GlobalConfiguration.all().get(DeployGlobalConfiguration.class).getDeployCallback();
-            String url = deployUrl + MessageFormat.format("/api/v1/kubernetes/tenants/{0}/projects/{1}/leoapps/{2}/tpls/{3}/clusters/{4}/input", tenantId, projectId, appId, tplId, env);
+            String url = MessageFormat.format(deployUrl, tenantId, projectId, appId, tplId, env);
             JSONObject jsonObject = new JSONObject();
             jsonObject.put("runId", run.getNumber());
-            jsonObject.put("stepId", getId());
-            jsonObject.put("nodeId", node.getId());
+            jsonObject.put("inputId", getId());
+            jsonObject.put("stepId", node.getId());
             jsonObject.put("pipelineId", run.getParent().getName());
             jsonObject.put("devopsId", run.getParent().getParent() == null ? "" : run.getParent().getParent().getFullName());
-            LOGGER.log(Level.INFO, "Url:" + url + ",Deploy body is " + jsonObject.toString());
+            LOGGER.log(Level.INFO, "Deploy url is " + url);
+            LOGGER.log(Level.INFO, "Deploy body is " + jsonObject.toString());
             Boolean result = post(url, jsonObject, userId, userName);
             if (result) {
                 Object v;
@@ -297,12 +296,14 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
         if (user != null){
             approverId = user.getId();
             run.addAction(new ApproverAction(approverId));
-            listener.getLogger().println("Deploy succeed by " + hudson.console.ModelHyperlinkNote.encodeTo(user));
+//            listener.getLogger().println("Deploy succeed by " + hudson.console.ModelHyperlinkNote.encodeTo(user));
+            listener.getLogger().println("Deploy succeed by " + userName);
         }
         node.addAction(new DeploySubmittedAction(approverId, params));
         outcome = new Outcome(outcome.getNormal(), null, true, true, true);
         postSettlement();
         getContext().onSuccess(outcome.getNormal());
+        run.getActions().remove(getPauseAction());
         return HttpResponses.ok();
     }
 
@@ -334,24 +335,32 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
      */
     @RequirePOST
     public HttpResponse doAbort(StaplerRequest request) {
-        preAbortCheck();
         Map<String,Object> params = null;
-        try {
-            params = parseValue(request);
-        } catch (Exception e) {
-            LOGGER.log(Level.WARNING, "doAbort exception, ", e);
+        if (request != null) {
+            try {
+                params = parseValue(request);
+            } catch (Exception e) {
+                LOGGER.log(Level.WARNING, "doAbort exception, ", e);
+            }
         }
+        return doAbortProcceed(params);
+    }
 
+    public HttpResponse doAbortProcceed(@CheckForNull Map<String,Object> params) {
+        preAbortCheck();
         String userId = null;
         String userName = null;
-        if (params != null) {
-            userId = params.get("userId") == null ? null : params.get("userId").toString();
-            userName = params.get("userName") == null ? null : params.get("userName").toString();
+        if (outcome != null && outcome.getNormal() != null) {
+            userId = ((Map<String, Object>)outcome.getNormal()).get("userId") == null ? null : ((Map<String, Object>)outcome.getNormal()).get("userId").toString();
+            userName = ((Map<String, Object>)outcome.getNormal()).get("userName") == null ? null : ((Map<String, Object>)outcome.getNormal()).get("userName").toString();
+        } else {
+            if (params != null) {
+                userId = params.get("userId") == null ? null : params.get("userId").toString();
+                userName = params.get("userName") == null ? null : params.get("userName").toString();
+            }
         }
-        // callback input abort event
+        // callback deploy abort event
         postNoticeCallback(NOTICE_ABORT, userId, userName);
-
-        preAbortCheck();
 
         FlowInterruptedException e = new FlowInterruptedException(Result.ABORTED, new Rejection(User.current()));
         if (outcome == null) {
@@ -363,11 +372,12 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
         getContext().onFailure(e);
 
         // TODO: record this decision to FlowNode
+        run.getActions().remove(getPauseAction());
         return HttpResponses.ok();
     }
 
     /**
-     * Check if the current user can abort/cancel the run from the input.
+     * Check if the current user can abort/cancel the run from the deploy.
      */
     private void preAbortCheck() {
         if (outcome!=null && outcome.isAborted()) {
@@ -382,7 +392,7 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
     }
 
     /**
-     * Check if the current user can submit the input.
+     * Check if the current user can submit the deploy.
      */
     @Override
     public void preSubmissionCheck() {
@@ -477,7 +487,12 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
             Authentication a = Jenkins.getAuthentication();
             mapResult.put(valueName, a.getName());
         }
-
+//        mapResult.put("userId", request.getParameter("userId"));
+//        mapResult.put("userName", request.getParameter("userName"));
+//        mapResult.put("tenantId", request.getParameter("tenantId"));
+//        mapResult.put("projectId", request.getParameter("projectId"));
+//        mapResult.put("appId", request.getParameter("appId"));
+//        mapResult.put("deploy", request.getParameter("deploy"));
         if (mapResult.isEmpty()) {
             return null;
         } else {
@@ -502,7 +517,7 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
      * @return
      */
     public Boolean postNoticeCallback(String type, String userId, String userName)  {
-        // callback input start event
+        // callback deploy start event
         String noticeCallback = GlobalConfiguration.all().get(DeployGlobalConfiguration.class).getNoticeCallback();
         try {
             if (StringUtils.isEmpty(noticeCallback)) {
@@ -520,11 +535,12 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
         JSONObject jsonObject = new JSONObject();
         jsonObject.put("type", type);
         jsonObject.put("runId", run.getNumber());
+        jsonObject.put("inputId", this.getId());
         jsonObject.put("stepId", node.getId());
-        jsonObject.put("inputId", getId());
         jsonObject.put("pipelineName", run.getParent().getName());
         jsonObject.put("pipelineFullName", run.getParent().getFullName());
-        LOGGER.log(Level.INFO, "Post body is " + jsonObject.toString());
+        jsonObject.put("submitter", input == null ? "" : input.getSubmitter());
+        LOGGER.log(Level.INFO, "Deploy Step post body is " + jsonObject.toString());
         return post(noticeCallback, jsonObject, userId, userName);
     }
 
@@ -549,6 +565,7 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
             if (!StringUtils.isEmpty(userName)) {
                 leoUserJsonObject.put("userName", userName);
             }
+            LOGGER.log(Level.INFO, "Deploy step post header LEO-USER is " + leoUserJsonObject.toString());
             httpPost.setHeader("LEO-USER", leoUserJsonObject.toString());
             StringEntity postingString = new StringEntity(jsonObject.toString(),"utf-8");
             httpPost.setEntity(postingString);
@@ -558,7 +575,7 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
                 return true;
             }
         } catch (Exception e) {
-            LOGGER.log(Level.WARNING, "curl input url error, " + run, e);
+            LOGGER.log(Level.WARNING, "curl deploy url error, " + run, e);
         } finally {
             if (response != null) {
                 try {

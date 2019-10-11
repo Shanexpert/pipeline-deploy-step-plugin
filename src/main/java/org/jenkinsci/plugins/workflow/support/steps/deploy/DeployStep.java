@@ -168,7 +168,6 @@ public class DeployStep extends InputStep {
 
     @Override
     public DescriptorImpl getDescriptor() {
-        LOGGER.log(Level.WARNING, "getDescriptor");
         return new DescriptorImpl();
     }
 
@@ -177,7 +176,6 @@ public class DeployStep extends InputStep {
 
         public DescriptorImpl() {
             super(DeployStepExecution.class);
-            LOGGER.log(Level.WARNING, "DescriptorImpl construct");
         }
 
         @Override

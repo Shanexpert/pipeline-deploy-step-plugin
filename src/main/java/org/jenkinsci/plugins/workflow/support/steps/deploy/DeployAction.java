@@ -148,7 +148,6 @@ public class DeployAction extends InputAction implements RunAction2 {
 
     @Override
     public synchronized List<InputStepExecution> getExecutions() throws InterruptedException, TimeoutException {
-        LOGGER.log(Level.WARNING, "getExecutions");
         loadExecutions();
         if (executions == null) {
             return Collections.emptyList();
