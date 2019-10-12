@@ -274,8 +274,6 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
         jsonObject.put("stepId", node.getId());
         jsonObject.put("pipelineId", run.getParent().getName());
         jsonObject.put("devopsId", run.getParent().getParent() == null ? "" : run.getParent().getParent().getFullName());
-        LOGGER.log(Level.INFO, "Deploy url is " + url);
-        LOGGER.log(Level.INFO, "Deploy body is " + jsonObject.toString());
         Boolean result = post(url, jsonObject, userId, userName);
         if (result) {
             node.addAction(new DeployingAction(Result.NOT_BUILT));
@@ -564,7 +562,6 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
         jsonObject.put("pipelineName", run.getParent().getName());
         jsonObject.put("pipelineFullName", run.getParent().getFullName());
         jsonObject.put("submitter", input == null ? "" : input.getSubmitter());
-        LOGGER.log(Level.INFO, "Deploy Step post body is " + jsonObject.toString());
         return post(noticeCallback, jsonObject, userId, userName);
     }
 
@@ -589,8 +586,11 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
             if (!StringUtils.isEmpty(userName)) {
                 leoUserJsonObject.put("userName", userName);
             }
-            LOGGER.log(Level.INFO, "Deploy step post header LEO-USER is " + leoUserJsonObject.toString());
             httpPost.setHeader("LEO-USER", leoUserJsonObject.toString());
+            LOGGER.log(Level.INFO, "Deploy step post url is " + url);
+            LOGGER.log(Level.INFO, "Deploy step post header LEO-USER is " + leoUserJsonObject.toString());
+            LOGGER.log(Level.INFO, "Deploy step post body is " + jsonObject.toString());
+
             StringEntity postingString = new StringEntity(jsonObject.toString(),"utf-8");
             httpPost.setEntity(postingString);
             response = httpClient.execute(httpPost);
@@ -599,6 +599,7 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
                 //获取返回值
                 HttpEntity entity = response.getEntity();
                 String message = EntityUtils.toString(entity, "UTF-8");
+                LOGGER.log(Level.WARNING, "Response entity is " + message);
                 if (StringUtils.isNotEmpty(message)) {
                     JSONObject result = JSONObject.fromObject(message);
                     if (!"000000".equals(result.getString("rtnCode"))) {
@@ -606,7 +607,6 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
                         return  false;
                     }
                 }
-                LOGGER.log(Level.WARNING, "Response entity is " + message);
                 return true;
             }
         } catch (Exception e) {

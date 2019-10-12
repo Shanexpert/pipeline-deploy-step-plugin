@@ -5,7 +5,7 @@
                  description="deploy url">
             <f:textbox/>
         </f:entry>
-        <f:entry title="noticeCallback url" field="noticeCallback"
+        <f:entry title="NoticeCallback url" field="noticeCallback"
                  description="notice url">
             <f:textbox/>
         </f:entry>
