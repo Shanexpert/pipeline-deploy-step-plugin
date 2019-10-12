@@ -7,19 +7,25 @@ import hudson.Util;
 import hudson.console.HyperlinkNote;
 import hudson.model.*;
 import hudson.security.ACL;
+import hudson.security.SecurityRealm;
 import hudson.util.HttpResponses;
 import jenkins.model.GlobalConfiguration;
+import jenkins.model.IdStrategy;
 import jenkins.model.Jenkins;
 import jenkins.util.Timer;
 import net.sf.json.JSONArray;
 import net.sf.json.JSONObject;
+import net.sf.json.util.JSONUtils;
 import org.acegisecurity.Authentication;
 import org.acegisecurity.GrantedAuthority;
 import org.apache.commons.lang.StringUtils;
+import org.apache.http.HttpEntity;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.util.EntityUtils;
+import org.apache.tools.ant.taskdefs.condition.Http;
 import org.jenkinsci.plugins.workflow.graph.FlowNode;
 import org.jenkinsci.plugins.workflow.steps.FlowInterruptedException;
 import org.jenkinsci.plugins.workflow.steps.StepContextParameter;
@@ -30,7 +36,6 @@ import org.jenkinsci.plugins.workflow.support.steps.input.POSTHyperlinkNote;
 import org.kohsuke.stapler.HttpResponse;
 import org.kohsuke.stapler.StaplerRequest;
 import org.kohsuke.stapler.interceptor.RequirePOST;
-import org.springframework.util.CollectionUtils;
 
 import javax.annotation.CheckForNull;
 import javax.servlet.ServletException;
@@ -204,82 +209,7 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
         }
         User user = User.current();
         if (params != null && params.get("deploy") != null && StringUtils.isNotEmpty(params.get("deploy").toString())) {
-            node.addAction(new DeployingAction(Result.NOT_BUILT));
-
-            log("Deployed by " + hudson.console.ModelHyperlinkNote.encodeTo(user));
-            String tenantId = params.get("tenantId") == null ? "" : params.get("tenantId").toString();
-            String projectId = params.get("projectId") == null ? "" : params.get("projectId").toString();
-            String appId = params.get("appId") == null ? "" : params.get("appId").toString();
-            String userId = params.get("userId") == null ? "" : params.get("userId").toString();
-            String userName = params.get("userName") == null ? "" : params.get("userName").toString();
-            listener.getLogger().println("Deployed by " + userName);
-//            String tplId = params.get("tplId") == null ? "" : params.get("tplId").toString();
-//            String env = params.get("env") == null ? "" : params.get("env").toString();
-            String env = "";
-            String tplId = "";
-            if (input != null && !CollectionUtils.isEmpty(input.getParameters())) {
-                for (ParameterDefinition parameterDefinition : input.getParameters()) {
-                    if ("env".equals(parameterDefinition.getName())) {
-                        env = parameterDefinition.getDefaultParameterValue().getValue() == null ? ""
-                                : parameterDefinition.getDefaultParameterValue().getValue().toString();
-                    } else if ("tplId".equals(parameterDefinition.getName())) {
-                        tplId = parameterDefinition.getDefaultParameterValue().getValue() == null ? ""
-                                : parameterDefinition.getDefaultParameterValue().getValue().toString();
-                    }
-                }
-            }
-            if (StringUtils.isEmpty(tplId)) {
-                tplId = "0";
-            }
-            if (StringUtils.isEmpty(tenantId) || StringUtils.isEmpty(projectId) || StringUtils.isEmpty(appId)
-                    || StringUtils.isEmpty(env)
-                    || StringUtils.isEmpty(userId)) {
-                log("Params error, curl deploy url error.");
-                preAbortCheck();
-                FlowInterruptedException e = new FlowInterruptedException(Result.ABORTED, new ParamErrorRejection("Parmas error"));
-                outcome = new Outcome(null,e, null, true, null);
-                postSettlement();
-                getContext().onFailure(e);
-                return HttpResponses.ok();
-            }
-            // curl input url
-            String deployUrl = GlobalConfiguration.all().get(DeployGlobalConfiguration.class).getDeployCallback();
-            String url = MessageFormat.format(deployUrl, tenantId, projectId, appId, tplId, env);
-            JSONObject jsonObject = new JSONObject();
-            jsonObject.put("runId", run.getNumber());
-            jsonObject.put("inputId", getId());
-            jsonObject.put("stepId", node.getId());
-            jsonObject.put("pipelineId", run.getParent().getName());
-            jsonObject.put("devopsId", run.getParent().getParent() == null ? "" : run.getParent().getParent().getFullName());
-            LOGGER.log(Level.INFO, "Deploy url is " + url);
-            LOGGER.log(Level.INFO, "Deploy body is " + jsonObject.toString());
-            Boolean result = post(url, jsonObject, userId, userName);
-            if (result) {
-                Object v;
-                if (params != null && params.size() == 1) {
-                    v = params.values().iterator().next();
-                } else {
-                    v = params;
-                }
-                outcome = new Outcome(v, null, false, true, null);
-                return HttpResponses.ok();
-            } else {
-                log("Deploy error," + jsonObject.toString());
-                // callback deploy abort event
-                postNoticeCallback(NOTICE_ABORT, userId, userName);
-
-                FlowInterruptedException e = new FlowInterruptedException(Result.ABORTED, new Rejection(User.current()));
-                if (outcome == null) {
-                    outcome = new Outcome(null, e, null, null, true);
-                } else {
-                    outcome = new Outcome(null,e, outcome.isDeployed(), outcome.isSubmitted(), true);
-                }
-                postSettlement();
-                getContext().onFailure(e);
-
-                // TODO: record this decision to FlowNode
-                return HttpResponses.ok();
-            }
+            return deploy(params);
         }
         log("Deploy succeed.");
 
@@ -304,7 +234,76 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
         postSettlement();
         getContext().onSuccess(outcome.getNormal());
         run.getActions().remove(getPauseAction());
+
         return HttpResponses.ok();
+    }
+
+    private HttpResponse deploy(@CheckForNull Map<String,Object> params) {
+        //            log("Deployed by " + hudson.console.ModelHyperlinkNote.encodeTo(user));
+        String tenantId = params.get("tenantId") == null ? "" : params.get("tenantId").toString();
+        String projectId = params.get("projectId") == null ? "" : params.get("projectId").toString();
+        String appId = params.get("appId") == null ? "" : params.get("appId").toString();
+        String userId = params.get("userId") == null ? "" : params.get("userId").toString();
+        String userName = params.get("userName") == null ? "" : params.get("userName").toString();
+        String nodeId = params.get("nodeId") == null ? "" : params.get("nodeId").toString();
+        listener.getLogger().println("Deployed by " + userName);
+        String tplId = params.get("tplId") == null ? "" : params.get("tplId").toString();
+        String env = params.get("env") == null ? "" : params.get("env").toString();
+        if (StringUtils.isEmpty(tenantId) || StringUtils.isEmpty(projectId) || StringUtils.isEmpty(appId)
+                || StringUtils.isEmpty(env)
+                || StringUtils.isEmpty(tplId)
+                || StringUtils.isEmpty(userId)
+                || StringUtils.isEmpty(userName)
+                || StringUtils.isEmpty(nodeId)) {
+            log("Params error, curl deploy url error.");
+            LOGGER.warning("Params error, curl deploy url error. params: " + params.toString());
+            preAbortCheck();
+            FlowInterruptedException e = new FlowInterruptedException(Result.ABORTED, new ParamErrorRejection("Parmas error"));
+            outcome = new Outcome(null,e, null, true, null);
+            postSettlement();
+            getContext().onFailure(e);
+            return HttpResponses.ok();
+        }
+        // curl input url
+        String deployUrl = GlobalConfiguration.all().get(DeployGlobalConfiguration.class).getDeployCallback();
+        String url = MessageFormat.format(deployUrl, tenantId, projectId, appId, tplId, env);
+        JSONObject jsonObject = new JSONObject();
+        jsonObject.put("runId", run.getNumber());
+        jsonObject.put("nodeId", nodeId);
+        jsonObject.put("inputId", getId());
+        jsonObject.put("stepId", node.getId());
+        jsonObject.put("pipelineId", run.getParent().getName());
+        jsonObject.put("devopsId", run.getParent().getParent() == null ? "" : run.getParent().getParent().getFullName());
+        LOGGER.log(Level.INFO, "Deploy url is " + url);
+        LOGGER.log(Level.INFO, "Deploy body is " + jsonObject.toString());
+        Boolean result = post(url, jsonObject, userId, userName);
+        if (result) {
+            node.addAction(new DeployingAction(Result.NOT_BUILT));
+            Object v;
+            if (params != null && params.size() == 1) {
+                v = params.values().iterator().next();
+            } else {
+                v = params;
+            }
+            outcome = new Outcome(v, null, false, true, null);
+            return HttpResponses.ok();
+        } else {
+            log("Deploy error.");
+            // callback deploy abort event
+            postNoticeCallback(NOTICE_ABORT, userId, userName);
+
+            FlowInterruptedException e = new FlowInterruptedException(Result.ABORTED, new Rejection(User.current()));
+            if (outcome == null) {
+                outcome = new Outcome(null, e, null, null, true);
+            } else {
+                outcome = new Outcome(null,e, outcome.isDeployed(), outcome.isSubmitted(), true);
+            }
+            postSettlement();
+            getContext().onFailure(e);
+
+            // TODO: record this decision to FlowNode
+            return HttpResponses.ok();
+        }
     }
 
     @Deprecated
@@ -427,7 +426,7 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
     }
 
     private boolean canCancel() {
-        return getRun().getParent().hasPermission(Job.CANCEL);
+        return !Jenkins.getActiveInstance().isUseSecurity() || getRun().getParent().hasPermission(Job.CANCEL);
     }
 
     private boolean canSubmit() {
@@ -442,12 +441,37 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
         String submitter = input.getSubmitter();
         if (submitter==null)
             return getRun().getParent().hasPermission(Job.BUILD);
+        if (!Jenkins.getActiveInstance().isUseSecurity() || Jenkins.getActiveInstance().hasPermission(Jenkins.ADMINISTER)) {
+            return true;
+        }
         final Set<String> submitters = Sets.newHashSet(submitter.split(","));
-        if (submitters.contains(a.getName()))
+        final SecurityRealm securityRealm = Jenkins.getActiveInstance().getSecurityRealm();
+        if (isMemberOf(a.getName(), submitters, securityRealm.getUserIdStrategy()))
             return true;
         for (GrantedAuthority ga : a.getAuthorities()) {
-            if (submitters.contains(ga.getAuthority()))
+            if (isMemberOf(ga.getAuthority(), submitters, securityRealm.getGroupIdStrategy()))
                 return true;
+        }
+        return false;
+    }
+
+    /**
+     * Checks if the provided userId is contained in the submitters list, using {@link SecurityRealm#getUserIdStrategy()} comparison algorithm.
+     * Main goal is to respect here the case sensitivity settings of the current security realm
+     * (which default behavior is case insensitivity).
+     *
+     * @param userId the id of the user if it is matching one of the submitters using {@link IdStrategy#equals(String, String)}
+     * @param submitters the list of authorized submitters
+     * @param idStrategy the idStrategy impl to use for comparison
+     * @return true is userId was found in submitters, false if not.
+     *
+     * @see {@link jenkins.model.IdStrategy#CASE_INSENSITIVE}.
+     */
+    private boolean isMemberOf(String userId, Set<String> submitters, IdStrategy idStrategy) {
+        for (String submitter : submitters) {
+            if (idStrategy.equals(userId, StringUtils.trim(submitter))) {
+                return true;
+            }
         }
         return false;
     }
@@ -572,6 +596,17 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
             response = httpClient.execute(httpPost);
             log("Response status code is " + response.getStatusLine().getStatusCode());
             if (response.getStatusLine().getStatusCode() == HttpServletResponse.SC_OK) {
+                //获取返回值
+                HttpEntity entity = response.getEntity();
+                String message = EntityUtils.toString(entity, "UTF-8");
+                if (StringUtils.isNotEmpty(message)) {
+                    JSONObject result = JSONObject.fromObject(message);
+                    if (!"000000".equals(result.getString("rtnCode"))) {
+                        log("Response error message is " + result.getString("rtnMsg"));
+                        return  false;
+                    }
+                }
+                LOGGER.log(Level.WARNING, "Response entity is " + message);
                 return true;
             }
         } catch (Exception e) {
