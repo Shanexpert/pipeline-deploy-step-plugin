@@ -36,6 +36,7 @@ import org.jenkinsci.plugins.workflow.support.steps.input.POSTHyperlinkNote;
 import org.kohsuke.stapler.HttpResponse;
 import org.kohsuke.stapler.StaplerRequest;
 import org.kohsuke.stapler.interceptor.RequirePOST;
+import org.springframework.util.CollectionUtils;
 
 import javax.annotation.CheckForNull;
 import javax.servlet.ServletException;
@@ -231,10 +232,21 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
         }
         node.addAction(new DeploySubmittedAction(approverId, params));
         outcome = new Outcome(outcome.getNormal(), null, true, true, true);
+
+        // remove DeployAction from run
+        run.getActions().remove(getPauseAction());
+        // remove DeployingAction from run
+        List<DeployingAction> deployingActionList = run.getActions(DeployingAction.class);
+        if (!CollectionUtils.isEmpty(deployingActionList)) {
+            for (DeployingAction deployingAction : deployingActionList) {
+                if (node.getId().equals(deployingAction.getMessage())) {
+                    run.getActions().remove(deployingAction);
+                }
+            }
+        }
+
         postSettlement();
         getContext().onSuccess(outcome.getNormal());
-        run.getActions().remove(getPauseAction());
-
         return HttpResponses.ok();
     }
 
@@ -276,7 +288,10 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
         jsonObject.put("devopsId", run.getParent().getParent() == null ? "" : run.getParent().getParent().getFullName());
         Boolean result = post(url, jsonObject, userId, userName);
         if (result) {
-            node.addAction(new DeployingAction(Result.NOT_BUILT));
+            DeployingAction deployingAction = new DeployingAction(Result.NOT_BUILT);
+            deployingAction = deployingAction.withMessage(node.getId());
+            node.addAction(deployingAction);
+            run.addAction(deployingAction);
             Object v;
             if (params != null && params.size() == 1) {
                 v = params.values().iterator().next();
@@ -365,11 +380,21 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
         } else {
             outcome = new Outcome(null,e, outcome.isDeployed(), outcome.isSubmitted(), true);
         }
-        postSettlement();
-        getContext().onFailure(e);
 
         // TODO: record this decision to FlowNode
         run.getActions().remove(getPauseAction());
+        // remove DeployingAction from run
+        List<DeployingAction> deployingActionList = run.getActions(DeployingAction.class);
+        if (!CollectionUtils.isEmpty(deployingActionList)) {
+            for (DeployingAction deployingAction : deployingActionList) {
+                if (node.getId().equals(deployingAction.getMessage())) {
+                    run.getActions().remove(deployingAction);
+                }
+            }
+        }
+
+        postSettlement();
+        getContext().onFailure(e);
         return HttpResponses.ok();
     }
 
