@@ -56,6 +56,7 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
     private static final Logger LOGGER = Logger.getLogger(DeployStepExecution.class.getName());
 
     private static final String NOTICE_READY = "ready";
+    private static final String NOTICE_SUBMITTED = "submitted";
     private static final String NOTICE_SUCCESS = "success";
     private static final String NOTICE_ABORT = "abort";
 
@@ -201,17 +202,13 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
     @Override
     public HttpResponse proceed(@CheckForNull Map<String,Object> params) {
         if (params != null && params.get("deploy") != null && StringUtils.isNotEmpty(params.get("deploy").toString())) {
-            if (outcome != null)
-                throw new Failure("This deploy is submitted or is deployed");
+            return deploy(params);
         } else if (outcome == null){
             throw new Failure("This deploy is not submitted, outcome is null");
         } else if (!outcome.isSubmitted()) {
             throw new Failure("This deploy is not submitted");
         }
         User user = User.current();
-        if (params != null && params.get("deploy") != null && StringUtils.isNotEmpty(params.get("deploy").toString())) {
-            return deploy(params);
-        }
         log("Deploy succeed.");
 
         String userId = null;
@@ -251,6 +248,11 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
     }
 
     private HttpResponse deploy(@CheckForNull Map<String,Object> params) {
+        if (outcome != null) {
+            throw new Failure("This deploy is submitted or is deployed");
+        }
+        outcome = new Outcome(null, null, null, true, null);
+
         //            log("Deployed by " + hudson.console.ModelHyperlinkNote.encodeTo(user));
         String tenantId = params.get("tenantId") == null ? "" : params.get("tenantId").toString();
         String projectId = params.get("projectId") == null ? "" : params.get("projectId").toString();
@@ -276,6 +278,9 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
             getContext().onFailure(e);
             return HttpResponses.ok();
         }
+        // callback deploy submitted event
+        postNoticeCallback(NOTICE_SUBMITTED, userId, userName);
+
         // curl input url
         String deployUrl = GlobalConfiguration.all().get(DeployGlobalConfiguration.class).getDeployCallback();
         String url = MessageFormat.format(deployUrl, tenantId, projectId, appId, tplId, env);
