@@ -60,6 +60,10 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
     private static final String NOTICE_SUCCESS = "success";
     private static final String NOTICE_ABORT = "abort";
 
+    private static final int STATUS_DEPLOYING = 999999;
+    private static final int STATUS_NOT_SUBMIT = 999998;
+//    private static final int STATUS_ABORTED = 999997;
+
     private static ConnectionManager connectionFactory = new ConnectionManager();
 
     @StepContextParameter private transient Run run;
@@ -203,10 +207,9 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
     public HttpResponse proceed(@CheckForNull Map<String,Object> params) {
         if (params != null && params.get("deploy") != null && StringUtils.isNotEmpty(params.get("deploy").toString())) {
             return deploy(params);
-        } else if (outcome == null){
-            throw new Failure("This deploy is not submitted, outcome is null");
-        } else if (!outcome.isSubmitted()) {
-            throw new Failure("This deploy is not submitted");
+        } else if (outcome == null || !outcome.isSubmitted()){
+            return HttpResponses.error(STATUS_NOT_SUBMIT, "This deploy is not submitted, params error.");
+//            throw new Failure("This deploy is not submitted.");
         }
         User user = User.current();
         log("Deploy succeed.");
@@ -249,7 +252,8 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
 
     private HttpResponse deploy(@CheckForNull Map<String,Object> params) {
         if (outcome != null) {
-            throw new Failure("This deploy is submitted or is deployed");
+//            throw new Failure("This deploy is submitted or is deployed");
+            return HttpResponses.error(STATUS_DEPLOYING, "Do not allow the operation in the release.");
         }
         outcome = new Outcome(null, null, null, true, null);
 
@@ -362,9 +366,16 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
         }
         return doAbortProcceed(params);
     }
+    private boolean userCancelFlag(Map<String,Object> params) {
+        return params != null && params.get("stop") != null && params.get("stop").toString().equals("true");
+    }
 
     public HttpResponse doAbortProcceed(@CheckForNull Map<String,Object> params) {
         preAbortCheck();
+        if (userCancelFlag(params)  && outcome!=null && (outcome.isSubmitted() || outcome.isDeployed())) {
+            // 用户点击取消
+            return HttpResponses.error(STATUS_DEPLOYING, "Do not allow the operation in the release.");
+        }
         String userId = null;
         String userName = null;
         if (outcome != null && outcome.getNormal() != null) {
@@ -376,15 +387,15 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
                 userName = params.get("userName") == null ? null : params.get("userName").toString();
             }
         }
-        // callback deploy abort event
-        postNoticeCallback(NOTICE_ABORT, userId, userName);
-
         FlowInterruptedException e = new FlowInterruptedException(Result.ABORTED, new Rejection(User.current()));
         if (outcome == null) {
             outcome = new Outcome(null, e, null, null, true);
         } else {
             outcome = new Outcome(null,e, outcome.isDeployed(), outcome.isSubmitted(), true);
         }
+
+        // callback deploy abort event
+        postNoticeCallback(NOTICE_ABORT, userId, userName);
 
         // TODO: record this decision to FlowNode
         run.getActions().remove(getPauseAction());
@@ -409,6 +420,7 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
     private void preAbortCheck() {
         if (outcome!=null && outcome.isAborted()) {
             throw new Failure("This deploy has been already given");
+//            HttpResponses.error(STATUS_ABORTED, "This deploy has been already given");
         } if (!canCancel() && !canSubmit()) {
             if (input.getSubmitter() != null) {
                 throw new Failure("You need to be '" + input.getSubmitter() + "' (or have Job/Cancel permissions) to cancel this.");
