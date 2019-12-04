@@ -15,9 +15,9 @@ import jenkins.model.Jenkins;
 import jenkins.util.Timer;
 import net.sf.json.JSONArray;
 import net.sf.json.JSONObject;
-import net.sf.json.util.JSONUtils;
 import org.acegisecurity.Authentication;
 import org.acegisecurity.GrantedAuthority;
+import org.apache.commons.collections.map.HashedMap;
 import org.apache.commons.lang.StringUtils;
 import org.apache.http.HttpEntity;
 import org.apache.http.client.methods.CloseableHttpResponse;
@@ -25,7 +25,6 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.util.EntityUtils;
-import org.apache.tools.ant.taskdefs.condition.Http;
 import org.jenkinsci.plugins.workflow.graph.FlowNode;
 import org.jenkinsci.plugins.workflow.steps.FlowInterruptedException;
 import org.jenkinsci.plugins.workflow.steps.StepContextParameter;
@@ -35,6 +34,7 @@ import org.jenkinsci.plugins.workflow.support.steps.input.InputStepExecution;
 import org.jenkinsci.plugins.workflow.support.steps.input.POSTHyperlinkNote;
 import org.kohsuke.stapler.HttpResponse;
 import org.kohsuke.stapler.StaplerRequest;
+import org.kohsuke.stapler.StaplerResponse;
 import org.kohsuke.stapler.interceptor.RequirePOST;
 import org.springframework.util.CollectionUtils;
 
@@ -62,7 +62,7 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
 
     private static final int STATUS_DEPLOYING = 999999;
     private static final int STATUS_NOT_SUBMIT = 999998;
-//    private static final int STATUS_ABORTED = 999997;
+    private static final int STATUS_ABORTED = 999997;
 
     private static ConnectionManager connectionFactory = new ConnectionManager();
 
@@ -208,7 +208,8 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
         if (params != null && params.get("deploy") != null && StringUtils.isNotEmpty(params.get("deploy").toString())) {
             return deploy(params);
         } else if (outcome == null || !outcome.isSubmitted()){
-            return HttpResponses.error(STATUS_NOT_SUBMIT, "This deploy is not submitted, params error.");
+//            return HttpResponses.error(STATUS_NOT_SUBMIT, "This deploy is not submitted, params error.");
+            return new CustomHttpResponses().status(200, STATUS_NOT_SUBMIT);
 //            throw new Failure("This deploy is not submitted.");
         }
         User user = User.current();
@@ -253,7 +254,9 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
     private HttpResponse deploy(@CheckForNull Map<String,Object> params) {
         if (outcome != null) {
 //            throw new Failure("This deploy is submitted or is deployed");
-            return HttpResponses.error(STATUS_DEPLOYING, "Do not allow the operation in the release.");
+//            return HttpResponses.error(STATUS_DEPLOYING, "Do not allow the operation in the release.");
+//            return HttpResponses.status(STATUS_DEPLOYING);
+            return new CustomHttpResponses().status(200, STATUS_DEPLOYING);
         }
         outcome = new Outcome(null, null, null, true, null);
 
@@ -295,6 +298,7 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
         jsonObject.put("stepId", node.getId());
         jsonObject.put("pipelineId", run.getParent().getName());
         jsonObject.put("devopsId", run.getParent().getParent() == null ? "" : run.getParent().getParent().getFullName());
+        log("Deploy envent start");
         Boolean result = post(url, jsonObject, userId, userName);
         if (result) {
             DeployingAction deployingAction = new DeployingAction(Result.NOT_BUILT);
@@ -372,9 +376,16 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
 
     public HttpResponse doAbortProcceed(@CheckForNull Map<String,Object> params) {
         preAbortCheck();
+        if (outcome!=null && outcome.isAborted()) {
+//            throw new Failure("This deploy has been already given");
+            return new CustomHttpResponses().status(200, STATUS_ABORTED);
+//            HttpResponses.error(STATUS_ABORTED, "This deploy has been already given");
+        }
         if (userCancelFlag(params)  && outcome!=null && (outcome.isSubmitted() || outcome.isDeployed())) {
             // 用户点击取消
-            return HttpResponses.error(STATUS_DEPLOYING, "Do not allow the operation in the release.");
+//            return HttpResponses.error(STATUS_DEPLOYING, "Do not allow the operation in the release.");
+//            return HttpResponses.status(STATUS_DEPLOYING);
+            return new CustomHttpResponses().status(200, STATUS_DEPLOYING);
         }
         String userId = null;
         String userName = null;
@@ -418,10 +429,7 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
      * Check if the current user can abort/cancel the run from the deploy.
      */
     private void preAbortCheck() {
-        if (outcome!=null && outcome.isAborted()) {
-            throw new Failure("This deploy has been already given");
-//            HttpResponses.error(STATUS_ABORTED, "This deploy has been already given");
-        } if (!canCancel() && !canSubmit()) {
+        if (!canCancel() && !canSubmit()) {
             if (input.getSubmitter() != null) {
                 throw new Failure("You need to be '" + input.getSubmitter() + "' (or have Job/Cancel permissions) to cancel this.");
             } else {
@@ -652,7 +660,7 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
                 return true;
             }
         } catch (Exception e) {
-            LOGGER.log(Level.WARNING, "curl deploy url error, " + run, e);
+            log("curl deploy url error, " + run, e);
         } finally {
             if (response != null) {
                 try {
@@ -667,4 +675,21 @@ public class DeployStepExecution extends InputStepExecution implements ModelObje
 
 
     private static final long serialVersionUID = 1L;
+
+    class CustomHttpResponses {
+        public org.kohsuke.stapler.HttpResponses.HttpResponseException status(final int code, final int rtnCode) {
+            return new org.kohsuke.stapler.HttpResponses.HttpResponseException() {
+                @Override
+                public void generateResponse(StaplerRequest req, StaplerResponse rsp, Object node) throws IOException, ServletException {
+                    rsp.setStatus(code);
+                    rsp.setContentType("application/json;charset=UTF-8");
+                    Map<String, Object> rtnMessage = new HashedMap();
+                    rtnMessage.put("code", rtnCode);
+                    rsp.getWriter().println(rtnMessage);
+                }
+            };
+        }
+    }
 }
+
+
