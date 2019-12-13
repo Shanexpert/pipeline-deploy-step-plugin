@@ -30,7 +30,7 @@ import javax.annotation.CheckForNull;
 import java.util.Map;
 
 /**
- * @author bangdao
+ * @author zjq
  */
 public class DeploySubmittedAction extends InputSubmittedAction {
 
