@@ -180,7 +180,7 @@ public class DeployStep extends InputStep {
 
         @Override
         public String getFunctionName() {
-            return "deploy";
+            return "leoDeploy";
         }
 
         @Override

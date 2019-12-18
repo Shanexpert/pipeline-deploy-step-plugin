@@ -5,14 +5,16 @@
 <j:jelly xmlns:j="jelly:core" xmlns:st="jelly:stapler" xmlns:f="/lib/form">
   <h1>deploy插件</h1>
   <h1>input message: ${it.input.message}</h1>
+  <!--
   <h1>deploy message: ${it.deploy.message}</h1>
+  -->
   <j:if test="${!it.completed}">
     <f:form method="post" action="${it.id}/submit" name="${it.id}">
       <j:forEach var="param" items="${it.input.parameters}">
         <st:include page="index.jelly" it="${param}"/>
       </j:forEach>
       <f:block>
-        <f:submit value="${it.deploy.ok}" name="proceed"/>
+        <f:submit value="${it.leoDeploy.ok}" name="proceed"/>
         <f:submit value="${%Abort}" name="abort"/>
       </f:block>
     </f:form>
